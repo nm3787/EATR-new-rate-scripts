@@ -1,10 +1,12 @@
 
 import numpy as np
 from scipy import optimize
+from scipy.stats import ks_1samp
 import argparse
 import os,sys
 sys.path.append(os.path.abspath('.'))
 import rate_methods_library as RM
+import ks_censored as ksc
 import json
 import random
 
@@ -34,14 +36,17 @@ parser.add_argument('--energyunit', type=np.float64, default=1, help='the conver
 parser.add_argument('--gammamin', type=np.float64, default=0, help='the minimum value of gamma to be checked')
 parser.add_argument('--gammamax', type=np.float64, default=1, help='the maximum value of gamma to be checked')
 parser.add_argument('--seed', type=int, default=None, help='the random number generator seed to use (for repeatability)')
-parser.add_argument('--numboots', type=int, default=100, help='the number of bootstrap samples to use in bootsrapping if enabled')
 event_find.add_argument('--maxlen', type=int, default=None, help='the maximum number of rows in each COLVAR file before the simulation runs out of time')
 event_find.add_argument('--maxtime', type=np.float64, default=None, help='the maximum time that can appear in each COLVAR file (try to make it slightly less for floating point reasons)')
 event_find.add_argument('--numevents', type=int, default=None, action='append', help='the number of simulations that transitioned for each simulation set (i.e. -i path/to/1/*.colvar --numevents 20 -i path/to/2/*.colvar --numevents 18 etc.)')
 event_find.add_argument('--logfiles', type=str, default=None, action='append', help='the name of the file that contains the PLUMED log for each simulation in each set (i.e. -i path/to/1/*.colvar --logfiles path/to/1/*.log -i path/to/2/*.colvar --logfiles path/to/2/*.log etc.). Use check_order.py to make sure that the correct COLVAR files are paired with the correct log files.', nargs='+')
 #event_find.add_argument('--event_list', type=str, help='the path to a single-line file containing the indices (starting from 0) of all simulations that transitioned') # Cannot predict in what order the simulations will get loaded by glob
 parser.add_argument('-b', '--bootstrap', action='store_true', help='calculate errorbars with bootstrap analysis')
+parser.add_argument('--numboots', type=int, default=100, help='the number of bootstrap samples to use in bootsrapping if enabled')
 parser.add_argument('-q', '--quiet', action='store_true', help='do not print the results to the terminal as they are calculated')
+parser.add_argument('--cdf', action='store_true', help='estimate the biased observed rates using CDF fitting (not recommended if you have arbitrarily right-censored data, such as simulations being killed before reaching max steps)')
+parser.add_argument('--timefirst', action='store_true', help='estimate ln<e^βγV> by averaging over time for each simulation, then over the simulations (default is over simulations first)')
+parser.add_argument('--nooffset', action='store_true', help='do not add the BARRIER parameter to the bias (OPES simulations in PLUMED offset the bias by -1*BARRIER, so do not use this for such simulations)')
 
 args = parser.parse_args()
 
@@ -84,6 +89,9 @@ if log_filess is None:
 
 gamma_bounds = (args.gammamin,args.gammamax) # The boundaries for the bounded optimization of gamma.
 
+axis_first = 1 if args.timefirst else 0
+survival_f = lambda t, k: np.exp(-k*t)
+
 # Preload the data
 datas = [RM.get_data(colvars,args.tcol,args.vcol,time_scale_factor=args.timeunit) for colvars in args.input] # Yes I know data is the plural
 events = [RM.get_event(datas[i], maxlen=args.maxlen, maxtime=args.maxtime, num_events=num_eventss[i], log_files=log_filess[i], quiet=args.quiet) for i in range(len(datas))]
@@ -96,7 +104,8 @@ def analyze(indicess, quiet=False):
     for i in range(len(barriers)):
 
         barr = barriers[i]
-        data = np.array([datas[i][j] for j in indicess[i]])
+        barr_add = 0 if args.nooffset else barr
+        data = [datas[i][j] for j in indicess[i]]
         event = np.array([events[i][j] for j in indicess[i]])
         if not quiet:
             print(f'Simulation Set: BARRIER = {beta*barr} kBT')
@@ -109,31 +118,42 @@ def analyze(indicess, quiet=False):
         colvar_maxrow_count = max(len(traj[:,0]) for traj in data)
         v_data = np.full((len(data), colvar_maxrow_count), np.nan)
         for i, traj in enumerate(data):
-            v_data[i,:len(traj)] = traj[:,1]+barr
+            v_data[i,:len(traj)] = traj[:,1]+barr_add
         v_datas[barr] = v_data
     
+        final_times = np.array([traj[-1,0] for traj in data])
+
         # Fit the CDF to get the observed rate
-        ecdfxs = np.sort([traj[-1,0] for traj in data])
+        ecdfxs = np.sort(final_times)
         ecdfys = np.linspace(1/len(event),1,len(event))
-        emp_rate = event.sum() / ecdfxs[:event.sum()].sum()
-        obs_rate = optimize.curve_fit(lambda t,k:1-np.exp(-k*t),ecdfxs[:event.sum()],ecdfys[:event.sum()],p0=emp_rate)[0][0]
-        obs_rates[barr] = obs_rate
+        emp_rate = event.sum() / final_times[event].sum()
+        if args.cdf:
+            obs_rate = optimize.curve_fit(lambda t,k:1-np.exp(-k*t),ecdfxs[:event.sum()],ecdfys[:event.sum()],p0=emp_rate)[0][0]
+            obs_rates[barr] = obs_rate
+            ks_stat, p = ks_1samp(ecdfxs[:event.sum()],lambda t: 1-np.exp(-obs_rate*t))
+        else:
+            obs_rate = emp_rate
+            obs_rates[barr] = emp_rate
+            ks_stat, p = ksc.ks_1samp_censored(final_times,event,lambda t: np.exp(-emp_rate*t))
+
         if not quiet:
             print(f'tau_obs: {1/obs_rate}, k_obs: {obs_rate}, log k_obs: {np.log(obs_rate)}')
+            print(f'KS stat: {ks_stat}; p = {p}')
             avg = np.mean(np.nanmean(np.exp(beta*v_data),axis=0)) # Average over simulations, then over time
             print(rf'ln<e^βV>: {np.log(avg)}')
-    
+            print('')
+
     def variance(gamma):
         logk0s = []
         for barr in barriers:
-            avg = np.mean(np.nanmean(np.exp(beta*gamma*v_datas[barr]),axis=0))
+            avg = np.mean(np.nanmean(np.exp(beta*gamma*v_datas[barr]),axis=axis_first))
             logk0s.append(np.log(obs_rates[barr])-np.log(avg))
         return np.var(logk0s)
     
     gamma_best = optimize.minimize_scalar(variance,bounds=gamma_bounds).x
     logk0s = []
     for barr in barriers:
-        avg = np.mean(np.nanmean(np.exp(beta*gamma_best*v_datas[barr]),axis=0))
+        avg = np.mean(np.nanmean(np.exp(beta*gamma_best*v_datas[barr]),axis=axis_first))
         logk0s.append(np.log(obs_rates[barr])-np.log(avg))
     logk0_best = np.mean(logk0s)
 
@@ -143,7 +163,7 @@ def analyze(indicess, quiet=False):
 
 if not args.bootstrap:
     logk0_best, gamma_best = analyze([list(range(len(data))) for data in datas], quiet=args.quiet)
-    print(f'\nlogk0: {logk0_best} s^-1, τ0: {np.exp(-logk0_best)} s, gamma: {gamma_best}')
+    print(f'\nk0: {np.exp(logk0_best)} s^-1, logk0: {logk0_best} s^-1, τ0: {np.exp(-logk0_best)} s, gamma: {gamma_best}')
 else:
     sample_logk0 = []
     sample_gamma = []

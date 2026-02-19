@@ -94,7 +94,7 @@ survival_f = lambda t, k: np.exp(-k*t)
 
 # Preload the data
 datas = [RM.get_data(colvars,args.tcol,args.vcol,time_scale_factor=args.timeunit) for colvars in args.input] # Yes I know data is the plural
-events = [RM.get_event(datas[i], maxlen=args.maxlen, maxtime=args.maxtime, num_events=num_eventss[i], log_files=log_filess[i], quiet=args.quiet) for i in range(len(datas))]
+events = [RM.get_event(datas[i], maxlen=args.maxlen, maxtime=args.maxtime, num_events=num_eventss[i], log_files=log_filess[i], quiet=True) for i in range(len(datas))]
 
 def analyze(indicess, quiet=False):
 
@@ -109,6 +109,7 @@ def analyze(indicess, quiet=False):
         event = np.array([events[i][j] for j in indicess[i]])
         if not quiet:
             print(f'Simulation Set: BARRIER = {beta*barr} kBT')
+            print(f'{event.sum()} out of {len(data)} simulations transitioned.')
     
         if not quiet:
             max_biases = [np.max(traj[:,1]+barr) for traj in data]
@@ -126,7 +127,7 @@ def analyze(indicess, quiet=False):
         # Fit the CDF to get the observed rate
         ecdfxs = np.sort(final_times)
         ecdfys = np.linspace(1/len(event),1,len(event))
-        emp_rate = event.sum() / final_times[event].sum()
+        emp_rate = event.sum() / final_times.sum()
         if args.cdf:
             obs_rate = optimize.curve_fit(lambda t,k:1-np.exp(-k*t),ecdfxs[:event.sum()],ecdfys[:event.sum()],p0=emp_rate)[0][0]
             obs_rates[barr] = obs_rate
@@ -172,7 +173,8 @@ else:
         logk0, gamma = analyze(indicess, quiet=True)
         sample_logk0.append(logk0)
         sample_gamma.append(gamma)
-        print(i)
+        if not args.quiet:
+            print(i)
     print(f'logk0: {np.mean(sample_logk0)} +/- σ {np.std(sample_logk0)} s^-1, τ0: {np.exp(-np.mean(sample_logk0))} s, gamma: {np.mean(sample_gamma)} +/- σ {np.std(sample_gamma)}')
     
     """

@@ -1,12 +1,18 @@
 # Script adapted from Palacio-Rodriguez et al. at https://github.com/kpalaciorodr/KTR/tree/master from J. Phys. Chem. Lett. 2022, 13, 32, 7490-7496.
 
 import numpy as np
+
+if hasattr(np, trapezoid):
+    trapezoid = np.trapezoid
+else:
+    trapezoid = np.trapz
+
 import sys
 import random
-import glob
-from scipy import interpolate, optimize, integrate
-from scipy.stats import ks_1samp, ks_2samp
-from scipy.stats import gamma as gamma_func
+#import glob
+from scipy import optimize
+#from scipy.stats import ks_1samp, ks_2samp
+#from scipy.stats import gamma as gamma_func
 import warnings
 import multiprocessing as mp
 from functools import partial
@@ -281,7 +287,7 @@ def KTR_calculate_cum_hazard(gamma, vmb_average, logTrick, final_time_index):
         max_vmb = max(vmb_average[:,1])
         return 0.5*dt*(1 + np.exp(gamma*vmb_average[int(final_time_index),1]) + 2*np.exp(gamma*max_vmb + np.log(np.exp(gamma*vmb_average[1:int(final_time_index),1] - gamma*max_vmb).sum())))
     else:
-        int_Veff = np.trapz(np.exp(gamma*vmb_average[:int(final_time_index),1]),vmb_average[:int(final_time_index),0])
+        int_Veff = trapezoid(np.exp(gamma*vmb_average[:int(final_time_index),1]),vmb_average[:int(final_time_index),0])
         return int_Veff
 
 # γβVmb at simulation i's transition time
@@ -541,7 +547,7 @@ def EATR_calculate_cum_hazard(log_average_exp, logTrick, final_time_index):
         max_lae = max(log_average_exp[:,1])
         return 0.5*dt*(1 + np.exp(log_average_exp[int(final_time_index),1]) + 2*np.exp(max_lae + np.log(np.exp(log_average_exp[1:int(final_time_index),1] - max_lae).sum())))
     else:
-        int_Veff = np.trapz(np.exp(log_average_exp[:int(final_time_index),1]),log_average_exp[:int(final_time_index),0])
+        int_Veff = trapezoid(np.exp(log_average_exp[:int(final_time_index),1]),log_average_exp[:int(final_time_index),0])
         return int_Veff
 
 # ln <e^γβV>

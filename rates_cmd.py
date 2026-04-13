@@ -6,7 +6,6 @@ sys.path.append(os.path.abspath('.'))
 import rate_methods_library as RM
 import json
 import random
-from scipy import interpolate, optimize, integrate
 from scipy.stats import ks_1samp, ks_2samp
 from scipy.stats import gamma as gamma_func
 import warnings
@@ -61,6 +60,7 @@ parser.add_argument('-K', '--ktrcdf', action='store_true', help='run KTR method 
 parser.add_argument('-e', '--eatrmle', action='store_true', help='run EATR method estimating gamma and k0 with likelihood')
 parser.add_argument('-E', '--eatrcdf', action='store_true', help='run EATR method estimating gamma and k0 with CDF')
 parser.add_argument('-b', '--bootstrap', action='store_true', help='calculate errorbars with bootstrap analysis')
+parser.add_argument('--std', action='store_true', help='use standard deviations in bootstrap analysis even if SciPy has the bootstrap method')
 parser.add_argument('--numboots', type=int, default=100, help='the number of bootstrap samples to use in bootsrapping if enabled (DEFAULT: 100)')
 parser.add_argument('-B', '--bayesopt', action='store_true', help='use Bayseian Optimization algorithm for optimizing if available')
 parser.add_argument('-l', '--logtrick', action='store_true', help='use log-sum-exp trick to potentially increase precision (generally unneeded)')
@@ -98,6 +98,8 @@ elif args.bayesopt:
     do_bopt = False
 
 # If bootstrapping is enabled, determine if SciPy's bootstrap method is available
+if args.std:
+    boots_avail = False
 if not args.quiet:
     if args.bootstrap and boots_avail:
         print('Bootstrapping is activated. Will use SciPy bootstrap method (errors are 95% confidence intervals).')

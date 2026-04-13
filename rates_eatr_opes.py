@@ -36,6 +36,7 @@ parser.add_argument('--timeunit', type=np.float64, default=1e-12, help='the conv
 parser.add_argument('--energyunit', type=np.float64, default=1, help='the conversion factor from the energy unit used in PLUMED to kJ/mol (only needed if temperature was given in Kelvin)')
 parser.add_argument('--gammamin', type=np.float64, default=0, help='the minimum value of gamma to be checked')
 parser.add_argument('--gammamax', type=np.float64, default=1, help='the maximum value of gamma to be checked')
+parser.add_argument('--avgover', type=np.float64, default=-1, help='only include Vi(t) from the first transition time to when this fraction of transitioned simulations have transitioned in the set (-1 to include all data, 1 to only exclude Vi(t) before first transition)')
 parser.add_argument('--seed', type=int, default=None, help='the random number generator seed to use (for repeatability)')
 event_find.add_argument('--maxlen', type=int, default=None, help='the maximum number of rows in each COLVAR file before the simulation runs out of time')
 event_find.add_argument('--maxtime', type=np.float64, default=None, help='the maximum time that can appear in each COLVAR file (try to make it slightly less for floating point reasons)')
@@ -49,6 +50,7 @@ parser.add_argument('--cdf', action='store_true', help='estimate the biased obse
 parser.add_argument('--timefirst', action='store_true', help='estimate ln<e^βγV> by averaging over time for each simulation, then over the simulations (default is over simulations first)')
 parser.add_argument('--nooffset', action='store_true', help='do not add the BARRIER parameter to the bias (OPES simulations in PLUMED offset the bias by -1*BARRIER, so do not use this for such simulations)')
 parser.add_argument('--opesf', action='store_true', help='also run the OPES flooding analysis on all of the data')
+
 
 args = parser.parse_args()
 
@@ -120,10 +122,12 @@ def analyze(indicess, quiet=False):
             print(f'avg. max. bias: {np.mean(max_biases)}')
     
         # Get bias data in an ndarray for averaging
-        colvar_maxrow_count = max(len(traj[:,0]) for traj in data)
-        v_data = np.full((len(data), colvar_maxrow_count), np.nan)
+        colvar_row_counts = np.sort([len(traj[:,0]) for traj in data])
+        max_index = colvar_row_counts[-1] if args.avgover < 0 else colvar_row_counts[int(abs(args.avgover)*np.sum(event))] # Figure out whether to use fraction of events or all simulations
+        min_index = 0 if args.avgover < 0 else colvar_row_counts[0]
+        v_data = np.full((len(data), max_index-min_index), np.nan)
         for i, traj in enumerate(data):
-            v_data[i,:len(traj)] = traj[:,1]+barr_add
+            v_data[i,:(min(len(traj),max_index)-min_index)] = traj[min_index:max_index,1]+barr_add
         v_datas[barr] = v_data
     
         final_times = np.array([traj[-1,0] for traj in data])
@@ -145,7 +149,7 @@ def analyze(indicess, quiet=False):
             obs_rates[barr] = emp_rate
             ks_stat, p = ksc.ks_1samp_censored(final_times,event,lambda t: np.exp(-emp_rate*t))
 
-        if not quiet:
+        if not quiet:gamma_func
             print(f'tau_obs: {1/obs_rate}, k_obs: {obs_rate}, log k_obs: {np.log(obs_rate)}')
             print(f'KS stat: {ks_stat}; p = {p}')
             avg = np.mean(np.nanmean(np.exp(beta*v_data),axis=0)) # Average over simulations, then over time
@@ -153,7 +157,7 @@ def analyze(indicess, quiet=False):
             print('')
 
     if args.opesf:
-        logk0_opesf = np.log(RM.iMetaD_invMRT_times(np.array(opesf_times), event=np.array(opesf_event)))
+        logk0_opesf = np.log(RM.iMetaD_FitCDF_times(np.array(opesf_times), event=np.array(opesf_event)))
 
     def variance(gamma):
         logk0s = []

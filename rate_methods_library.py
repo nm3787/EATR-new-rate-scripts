@@ -2,7 +2,7 @@
 
 import numpy as np
 
-if hasattr(np, trapezoid):
+if hasattr(np, 'trapezoid'):
     trapezoid = np.trapezoid
 else:
     trapezoid = np.trapz
@@ -400,7 +400,8 @@ def KTR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds
     if event is None:
         event = np.array([True for index in final_time_indices])
     if init_guess is None:
-        init_guess = (1/np.mean(vmb_average[final_time_indices,0]),0.9)
+        init_guess = (iMetaD_invMRT(data, beta, event=event, bias_shift=bias_shift),0.9)
+        #init_guess = (1/np.mean(vmb_average[final_time_indices,0]),0.9)
     
     # 2-parameter CDF fitting for gamma and k0
     ecdfx_indices = np.sort(final_time_indices)
@@ -628,9 +629,10 @@ def EATR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bound
 
     # initial guess should be similar to the observed rate if not specified
     if init_guess is None:
-        colvar_maxrow_count = max(len(traj[:,0]) for traj in data)
-        time_list = np.linspace(0,colvar_maxrow_count*(data[0][1,0]-data[0][0,0]),colvar_maxrow_count)
-        init_guess = (1/np.mean(time_list[final_time_indices]),0.9)
+        init_guess = (iMetaD_invMRT(data, beta, event=event, bias_shift=bias_shift),0.9)
+        #colvar_maxrow_count = max(len(traj[:,0]) for traj in data)
+        #time_list = np.linspace(0,colvar_maxrow_count*(data[0][1,0]-data[0][0,0]),colvar_maxrow_count)
+        #init_guess = (1/np.mean(time_list[final_time_indices]),0.9)
 
     # 2-parameter CDF fitting for gamma and k0
     ecdfx_indices = np.sort(final_time_indices)

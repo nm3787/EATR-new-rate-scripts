@@ -65,9 +65,11 @@ elif args.kt is not None:
     if not args.quiet:
         print(f'Using β = 1/kBT = {beta}')
 else:
-    beta = args.energyunit / (0.008314*args.temp)
+    beta = args.energyunit / (8.314462618e-3*args.temp)
     if not args.quiet:
         print(f'Using β = 1/kBT = {beta}, with PLUMED energy unit equivalent to {args.energyunit} kJ/mol')
+
+random.seed(args.seed)
 
 # If bootstrapping is enabled, determine if SciPy's bootstrap method is available
 #if not args.quiet:

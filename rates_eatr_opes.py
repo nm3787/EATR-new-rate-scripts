@@ -149,7 +149,7 @@ def analyze(indicess, quiet=False):
             obs_rates[barr] = emp_rate
             ks_stat, p = ksc.ks_1samp_censored(final_times,event,lambda t: np.exp(-emp_rate*t))
 
-        if not quiet:gamma_func
+        if not quiet:
             print(f'tau_obs: {1/obs_rate}, k_obs: {obs_rate}, log k_obs: {np.log(obs_rate)}')
             print(f'KS stat: {ks_stat}; p = {p}')
             avg = np.mean(np.nanmean(np.exp(beta*v_data),axis=0)) # Average over simulations, then over time

@@ -1,5 +1,27 @@
 # Rate Analysis Scripts
 
+## Installation
+
+This repository can now be installed as a Python package:
+
+```bash
+pip install .
+```
+
+For development work, including the test dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
+The package installs these command-line tools:
+
+- `eatr-rates`
+- `eatr-opes`
+- `eatr-check-order`
+
+You can also run the main CLI with `python -m eatr_rates`.
+
 `rate_methods_library.py` is the Python library that contains all of the methods needed to perform all of the available analyses. It is imported by `rates_cmd.py` and `rates_eatr_opes.py`.
 
 ## Metadynamics Analyses and OPES-Flooding
@@ -20,6 +42,9 @@
 `rates_cmd.py` should be run using a command similar to:
 `python rates_cmd.py -i run_*/*.colvar --temp 310 -MEb`
 
+After installation, the equivalent packaged command is:
+`eatr-rates -i run_*/*.colvar --temp 310 -MEb`
+
 Use `python rates_cmd.py -h` to get a full list of useful parameters, but some facts that are important to know:
 
 - You can only use one of TEMP, KT, and BETA to specify the temperature. If you use TEMP, you must ensure that ENERGYUNIT is correct. For example, if you specify TEMP, and you had used kcal/mol in PLUMED, you must set ENERGYUNIT to 4.184 kJ/mol.
@@ -37,6 +62,8 @@ Use `python rates_cmd.py -h` to get a full list of useful parameters, but some f
 
 `rates_eatr_opes.py` should be run using a command similar to: `python rates_eatr_opes.py -i barrier5/*.colvar --barrier 5 -i barrier10/*.colvar --barrier 10 -i barrier15/*.colvar --barrier 15 --temp 310` or `python rates_eatr_opes.py -i barrier5/*.colvar -i barrier10/*.colvar -i barrier15/*.colvar --barriers 5 10 15 --temp 310`
 
+After installation, the equivalent packaged command is `eatr-opes`.
+
 Use `python rates_eatr_opes.py -h` to get a full list of useful parameters, but some facts that are important to know:
 
 - You need to specify INPUT once for every set of simulations you performed.
@@ -44,3 +71,11 @@ Use `python rates_eatr_opes.py -h` to get a full list of useful parameters, but 
 - If you want to specify LOGFILES, that should also be specified for each set of simulations.
 - Bootstrapping in this script can only use an internal implementation, and thus will return the standard error. The samples are drawn by sampling with replacement the simulations within each set separately.
 - Because this script gives a single result, the result does not get saved to a file, but is instead only printed to the terminal.
+
+## Tests
+
+Run the unit test suite with:
+
+```bash
+pytest
+```

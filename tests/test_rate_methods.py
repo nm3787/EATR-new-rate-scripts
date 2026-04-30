@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import unittest
 from importlib.util import find_spec
 
@@ -15,6 +16,23 @@ else:
 
 @unittest.skipUnless(np is not None and ksc is not None and rm is not None, "numpy and scipy are required")
 class RateMethodTests(unittest.TestCase):
+    def test_bootstrap_resamples_event_labels_with_sample(self):
+        sample = ["a", "b", "c"]
+        event = np.array([True, False, False])
+
+        def collect(subsample, subevent):
+            return sum(1 for item, flag in zip(subsample, subevent) if item == "a" and flag)
+
+        random_state = random.getstate()
+        random.seed(1)
+        try:
+            stats = rm.bootstrap(sample, collect, 5, event=event, return_stat=True)
+        finally:
+            random.setstate(random_state)
+
+        self.assertEqual(len(stats), 5)
+        self.assertTrue(all(value >= 0 for value in stats))
+
     def test_get_event_uses_shorter_trajectories_for_maxlen(self):
         data = [
             np.array([[0.0, 0.0], [1.0, 0.0]]),

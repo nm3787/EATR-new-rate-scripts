@@ -16,8 +16,8 @@ pip install -e ".[dev]"
 
 The package installs these command-line tools:
 
-- `eatr-rates`
-- `eatr-opes`
+- `eatr-analysis`
+- `eatr-flooding-analysis`
 - `eatr-check-order`
 
 You can also run the main CLI with `python -m eatr_rates`.
@@ -43,7 +43,7 @@ You can also run the main CLI with `python -m eatr_rates`.
 `python rates_cmd.py -i run_*/*.colvar --temp 310 -MEb`
 
 After installation, the equivalent packaged command is:
-`eatr-rates -i run_*/*.colvar --temp 310 -MEb`
+`eatr-analysis -i run_*/*.colvar --temp 310 -MEb`
 
 Use `python rates_cmd.py -h` to get a full list of useful parameters, but some facts that are important to know:
 
@@ -62,7 +62,7 @@ Use `python rates_cmd.py -h` to get a full list of useful parameters, but some f
 
 `rates_eatr_opes.py` should be run using a command similar to: `python rates_eatr_opes.py -i barrier5/*.colvar --barrier 5 -i barrier10/*.colvar --barrier 10 -i barrier15/*.colvar --barrier 15 --temp 310` or `python rates_eatr_opes.py -i barrier5/*.colvar -i barrier10/*.colvar -i barrier15/*.colvar --barriers 5 10 15 --temp 310`
 
-After installation, the equivalent packaged command is `eatr-opes`.
+After installation, the equivalent packaged command is `eatr-flooding-analysis`.
 
 Use `python rates_eatr_opes.py -h` to get a full list of useful parameters, but some facts that are important to know:
 

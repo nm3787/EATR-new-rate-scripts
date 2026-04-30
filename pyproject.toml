@@ -37,8 +37,8 @@ bayesopt = [
 ]
 
 [project.scripts]
-eatr-rates = "eatr_rates.cli:rates_cmd"
-eatr-opes = "eatr_rates.cli:rates_eatr_opes"
+eatr-analysis = "eatr_rates.cli:rates_cmd"
+eatr-flooding-analysis = "eatr_rates.cli:rates_eatr_opes"
 eatr-check-order = "eatr_rates.cli:check_order"
 
 [tool.setuptools]

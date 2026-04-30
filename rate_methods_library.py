@@ -9,10 +9,7 @@ else:
 
 import sys
 import random
-#import glob
 from scipy import optimize
-#from scipy.stats import ks_1samp, ks_2samp
-#from scipy.stats import gamma as gamma_func
 import warnings
 import multiprocessing as mp
 from functools import partial
@@ -34,6 +31,30 @@ except:
 
 warnings.filterwarnings('ignore')
 
+
+def _default_event(values):
+    return np.array([True for _ in values])
+
+
+def _loadtxt_with_optional_header(colvar, usecols):
+    try:
+        return np.loadtxt(colvar, usecols=usecols)
+    except Exception:
+        return np.loadtxt(colvar, usecols=usecols, skiprows=1)
+
+
+def _pad_trajectory_columns(traj, missing_columns):
+    dummy = np.array([None for _ in traj])
+    extra = [dummy for _ in range(missing_columns)]
+    return np.vstack([traj.T, *extra]).T
+
+
+def _map_with_cores(func, values, cores):
+    if cores > 1:
+        with mp.Pool(cores) as pool:
+            return np.array(pool.map(func, values))
+    return np.array([func(value) for value in values])
+
 # data fmt:
 # [
 # [t0 V0 acc0 Vm0],
@@ -42,39 +63,21 @@ warnings.filterwarnings('ignore')
 # ...
 # ]
 def get_data(colvars,time_col,bias_col,acc_col=None,maxbias_col=None,time_scale_factor=1.0): # Changed "file_format" to "colvars"
-    #colvars = glob.glob(file_format)
-    #print(colvars)
     if len(colvars) == 0:
         sys.exit(f"ERROR: No COLVAR files provided.")
     data = []
     for colvar in colvars:
         if acc_col is None and maxbias_col is None:
-            try:
-                traj = np.loadtxt(colvar,usecols=(time_col,bias_col))
-            except:
-                traj = np.loadtxt(colvar,usecols=(time_col,bias_col),skiprows=1)
-            dummy = np.array([None for point in traj])
-            #print(traj)
-            #print(dummy)
-            traj = np.vstack([traj.T, dummy, dummy]).T
+            traj = _loadtxt_with_optional_header(colvar, (time_col, bias_col))
+            traj = _pad_trajectory_columns(traj, 2)
         elif maxbias_col is None:
-            try:
-                traj = np.loadtxt(colvar,usecols=[time_col,bias_col,acc_col])
-            except:
-                traj = np.loadtxt(colvar,usecols=[time_col,bias_col,acc_col],skiprows=1)
-            dummy = np.array([None for point in traj])
-            traj = np.vstack([traj.T, dummy]).T
+            traj = _loadtxt_with_optional_header(colvar, [time_col, bias_col, acc_col])
+            traj = _pad_trajectory_columns(traj, 1)
         elif acc_col is not None:
-            try:
-                traj = np.loadtxt(colvar,usecols=[time_col,bias_col,acc_col,maxbias_col])
-            except:
-                traj = np.loadtxt(colvar,usecols=[time_col,bias_col,acc_col,maxbias_col],skiprows=1)
+            traj = _loadtxt_with_optional_header(colvar, [time_col, bias_col, acc_col, maxbias_col])
         else:
-            try:
-                traj = np.loadtxt(colvar,usecols=[time_col,bias_col,maxbias_col])
-            except:
-                traj = np.loadtxt(colvar,usecols=[time_col,bias_col,maxbias_col],skiprows=1)
-            dummy = np.array([None for point in traj])
+            traj = _loadtxt_with_optional_header(colvar, [time_col, bias_col, maxbias_col])
+            dummy = np.array([None for _ in traj])
             traj = np.vstack([traj[:,:-1].T, dummy, traj[:,-1].T]).T
         traj[:,0] *= time_scale_factor
         data.append(traj)
@@ -88,7 +91,7 @@ def get_event(data, maxlen=None, maxtime=None, num_events=None, log_files=None, 
     # num_events: The simulations with the [num_events] lowest final times in their COLVAR files have transitioned.
     event = None
     if maxlen is None and maxtime is None and num_events is None and log_files is None:
-        event = np.array([True for traj in data])
+        event = _default_event(data)
         if not qquiet:
             print('WARNING: Assuming all simulations transitioned.')
     elif np.sum([maxlen is not None,maxtime is not None,num_events is not None,log_files is not None]) > 1:
@@ -141,13 +144,15 @@ def bootstrap(sample,func,nresamples,event=None,double=False,return_stat=False):
         indices = random.choices(list(range(len(sample))), k=len(sample))
         resample = [sample[index] for index in indices]
         if event is not None:
-            resampled_event = [event[index] for index in indices]
+            resampled_event = np.array([event[index] for index in indices])
+        else:
+            resampled_event = None
         if double:
-            a, b = func(resample,event)
+            a, b = func(resample,resampled_event)
             stat.append(a)
             stat2.append(b)
         else:
-            stat.append(func(resample,event))
+            stat.append(func(resample,resampled_event))
     if double:
         if return_stat:
             return np.array([[stat[i],stat2[i]] for i in range(len(stat))])
@@ -173,14 +178,14 @@ def iMetaD_rescaled_times(data, beta, bias_shift=0.0): # Consider cutting traj d
 # Infrequent Metadynamics Tiwary Estimator (directly from trajectory data)
 def iMetaD_invMRT(data, beta, event=None, bias_shift=0.0):
     if event is None:
-        event = np.array([True for traj in data]) # Assume all simulations transition unless told otherwise
+        event = _default_event(data) # Assume all simulations transition unless told otherwise
     times = iMetaD_rescaled_times(data, beta, bias_shift=bias_shift)
     return event.sum() / np.sum(times) # Σ_N t / M is the maximum likelihood estimate for right-censored data
 
 # Infrequent Metadynamics Tiwary Estimator (from precomputed rescaled times)
 def iMetaD_invMRT_times(times, event=None):
     if event is None:
-        event = np.array([True for time in times]) # Assume all simulations transition unless told otherwise
+        event = _default_event(times) # Assume all simulations transition unless told otherwise
     return event.sum() / np.sum(times) # Σ_N t / M is the maximum likelihood estimate for right-censored data
 
 # Infrequent Metadynamics CDF Fit Least Squares Objective
@@ -191,7 +196,7 @@ def iMetaD_leastsq_cost(k, t, ecdfy):
 
 def iMetaD_FitCDF(data, beta, event=None, bias_shift=0.0, k_bounds=(-np.inf,np.inf), k_guess=None):
     if event is None:
-        event = np.array([True for traj in data]) # Assume all simulations transition unless told otherwise
+        event = _default_event(data) # Assume all simulations transition unless told otherwise
     times = iMetaD_rescaled_times(data, beta, bias_shift=bias_shift)
     
     # Construct Empirical CDF
@@ -203,13 +208,10 @@ def iMetaD_FitCDF(data, beta, event=None, bias_shift=0.0, k_bounds=(-np.inf,np.i
 
     # Fit Poisson distribution CDF to data using Levinberg-Marquardt Method
     return optimize.curve_fit(lambda k,t:1-np.exp(-k*t), ecdfx, ecdfy, p0=k_guess, bounds=k_bounds)[0][0]
-    #bracket = [max(k_bounds[0],k_guess*1e-1),min(k_bounds[1],k_guess*1e1)]
-    #return optimize.minimize_scalar(lambda k: iMetaD_leastsq_cost(k,ecdfx,ecdfy), bracket=bracket, bounds=k_bounds).x
-    #return optimize.minimize(lambda k: iMetaD_leastsq_cost(k,ecdfx,ecdfy),k_guess).x[0]
 
 def iMetaD_FitCDF_times(times, event=None, k_bounds=(-np.inf,np.inf), k_guess=None):
     if event is None:
-        event = np.array([True for time in times]) # Assume all simulations transition unless told otherwise
+        event = _default_event(times) # Assume all simulations transition unless told otherwise
 
     # Construct Empirical CDF
     ecdfx = np.sort(times[event])
@@ -220,9 +222,6 @@ def iMetaD_FitCDF_times(times, event=None, k_bounds=(-np.inf,np.inf), k_guess=No
 
     # Fit Poisson distribution CDF to data using Levinberg-Marquardt Method
     return optimize.curve_fit(lambda k,t:1-np.exp(-k*t), ecdfx, ecdfy, p0=k_guess, bounds=k_bounds)[0][0]
-    #bracket = [max(k_bounds[0],k_guess*1e-1),min(k_bounds[1],k_guess*1e1)]
-    #return optimize.minimize_scalar(lambda k: iMetaD_leastsq_cost(k,ecdfx,ecdfy), bracket=bracket, bounds=k_bounds).x
-    #return optimize.minimize(lambda k: iMetaD_leastsq_cost(k,ecdfx,ecdfy),k_guess).x[0]
 
 
 ## Kramers' Time-dependent Rate (KTR)
@@ -261,15 +260,10 @@ def avg_max_bias(data, beta, bias_shift=0.0):
 def KTR_calculate_neg_log_l(gamma, final_time_indices, vmb_average, event=None, cores=1, logTrick=False, reg_lambda=0.0):
 
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
 
-    if cores > 1:
-        p =  mp.Pool(cores)
-        func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
-        cum_hazard = np.array(p.map(func, final_time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([KTR_calculate_cum_hazard(gamma, vmb_average, logTrick, final_time_index) for final_time_index in final_time_indices])
+    func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
+    cum_hazard = _map_with_cores(func, final_time_indices, cores)
 
     log_hazard = KTR_calculate_log_hazard(gamma, vmb_average, final_time_indices)
 
@@ -296,13 +290,8 @@ def KTR_calculate_log_hazard(gamma, vmb_average, final_time_index):
 
 # Theory CDF for KTR: S(t) = exp(-int_0^t k(t') dt') = exp(-k0 int_0^t e^γβVmb(t') dt')
 def KTR_CDF(time_indices, k0, gamma, vmb_average, cores=1, logTrick=False):
-    if cores > 1:
-        p = mp.Pool(cores)
-        func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
-        cum_hazard = np.array(p.map(func, time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([KTR_calculate_cum_hazard(gamma, vmb_average, logTrick, time_index) for time_index in time_indices])
+    func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
+    cum_hazard = _map_with_cores(func, time_indices, cores)
     return 1 - np.exp(-k0 * cum_hazard)
 
 # KTR CDF Fit Least Squares Objective
@@ -320,13 +309,12 @@ def KTR_MLE_rate(data, beta, event=None, gamma_bounds=(0.,1.), cores=1, logTrick
     vmb_average = avg_max_bias(data, beta, bias_shift=bias_shift)
     final_time_indices = np.array([int(len(traj)-1) for traj in data])
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
     
     if not do_bopt: # No Bayesian Optimization method: instead use bounded Brent method
         # Find the value of gamma that maximizes the likelihood
         neg_log_l = lambda gamma : KTR_calculate_neg_log_l(gamma, final_time_indices, vmb_average, event=event, cores=cores, logTrick=logTrick, reg_lambda=reg_lambda)
         opt = optimize.minimize_scalar(neg_log_l, bounds=gamma_bounds, method='bounded')
-        #opt = optimize.minimize_scalar(KTR_calculate_log_l, bounds=gamma_bounds, method='bounded', args=(data, vmb_average, event, cores, logTrick, reg_lambda))
         gamma = opt.x
     else: # Bayesian Optimization selected
         # Find the value of gamma that maximizes the likelihood
@@ -342,13 +330,8 @@ def KTR_MLE_rate(data, beta, event=None, gamma_bounds=(0.,1.), cores=1, logTrick
         gamma = optimizer.max['params']['gamma']
 
     # Calculate k0* = M / ( Σ_N int_0^ti e^γβVmb(t') dt' )
-    if cores > 1:
-        p = mp.Pool(cores)
-        func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
-        cum_hazard = np.array(p.map(func, final_time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([KTR_calculate_cum_hazard(gamma, vmb_average, logTrick, final_time_index) for final_time_index in final_time_indices])
+    func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
+    cum_hazard = _map_with_cores(func, final_time_indices, cores)
     k0 = event.sum() / cum_hazard.sum()
     
     return np.array([k0, gamma])
@@ -358,13 +341,12 @@ def KTR_MLE_rate_VMB(vmb_average, final_time_indices, event=None, gamma_bounds=(
 
     # Assume all simulations transitioned unless explicitly told otherwise
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
     
     if not do_bopt: # No Bayesian Optimization method: instead use bounded Brent method
         # Find the value of gamma that maximizes the likelihood
         neg_log_l = lambda gamma : KTR_calculate_neg_log_l(gamma, final_time_indices, vmb_average, event=event, cores=cores, logTrick=logTrick, reg_lambda=reg_lambda)
         opt = optimize.minimize_scalar(neg_log_l, bounds=gamma_bounds, method='bounded')
-        #opt = optimize.minimize_scalar(KTR_calculate_log_l, bounds=gamma_bounds, method='bounded', args=(data, vmb_average, event, cores, logTrick, reg_lambda))
         gamma = opt.x
     else: # Bayesian Optimization selected
         # Find the value of gamma that maximizes the likelihood
@@ -380,13 +362,8 @@ def KTR_MLE_rate_VMB(vmb_average, final_time_indices, event=None, gamma_bounds=(
         gamma = optimizer.max['params']['gamma']
 
     # Calculate k0* = M / ( Σ_N int_0^ti e^γβVmb(t') dt' )
-    if cores > 1:
-        p = mp.Pool(cores)
-        func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
-        cum_hazard = np.array(p.map(func, final_time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([KTR_calculate_cum_hazard(gamma, vmb_average, logTrick, final_time_index) for final_time_index in final_time_indices])
+    func = partial(KTR_calculate_cum_hazard, gamma, vmb_average, logTrick)
+    cum_hazard = _map_with_cores(func, final_time_indices, cores)
     k0 = event.sum() / cum_hazard.sum()
     
     return np.array([k0, gamma])
@@ -398,10 +375,9 @@ def KTR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds
     vmb_average = avg_max_bias(data, beta, bias_shift=bias_shift)
     final_time_indices = np.array([int(len(traj)-1) for traj in data])
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
     if init_guess is None:
         init_guess = (iMetaD_invMRT(data, beta, event=event, bias_shift=bias_shift),0.9)
-        #init_guess = (1/np.mean(vmb_average[final_time_indices,0]),0.9)
     
     # 2-parameter CDF fitting for gamma and k0
     ecdfx_indices = np.sort(final_time_indices)
@@ -435,7 +411,7 @@ def KTR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds
 def KTR_CDF_rate_VMB(vmb_average, final_time_indices, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, logTrick=False, init_guess=None, reg_lambda=0.0, kIMD=None, do_bopt=False):
     
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
     if init_guess is None:
         init_guess = (1/np.mean(vmb_average[final_time_indices,0]),0.9)
     if kIMD is None:
@@ -498,16 +474,10 @@ def avg_exponential(data, beta, gamma, logTrick=False, bias_shift=0.0):
 def EATR_calculate_neg_log_l(gamma, final_time_indices, log_average_exp, event=None, cores=1, logTrick=False, reg_lambda=0.0):
 
     if event is None:
-        event = np.array([True for index in final_time_indices])
-    
-    if cores > 1:
-        p =  mp.Pool(cores)
-        func = None
-        func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
-        cum_hazard = np.array(p.map(func, final_time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([EATR_calculate_cum_hazard(log_average_exp, logTrick, final_time_index) for final_time_index in final_time_indices])
+        event = _default_event(final_time_indices)
+
+    func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
+    cum_hazard = _map_with_cores(func, final_time_indices, cores)
 
     log_hazard = EATR_calculate_log_hazard(final_time_indices, log_average_exp)
 
@@ -522,16 +492,10 @@ def EATR_calculate_neg_log_l(gamma, final_time_indices, log_average_exp, event=N
 def EATR_calculate_neg_log_l_k0(k0, gamma, final_time_indices, log_average_exp, event=None, cores=1, logTrick=False, reg_lambda=0.0):
 
     if event is None:
-        event = np.array([True for index in final_time_indices])
-    
-    if cores > 1:
-        p =  mp.Pool(cores)
-        func = None
-        func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
-        cum_hazard = np.array(p.map(func, final_time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([EATR_calculate_cum_hazard(log_average_exp, logTrick, final_time_index) for final_time_index in final_time_indices])
+        event = _default_event(final_time_indices)
+
+    func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
+    cum_hazard = _map_with_cores(func, final_time_indices, cores)
 
     log_hazard = EATR_calculate_log_hazard(final_time_indices, log_average_exp)
 
@@ -560,13 +524,8 @@ def EATR_calculate_log_hazard(final_time_index, log_average_exp):
 # Theory CDF for EATR: S(t) = exp(-int_0^t k(t') dt') = exp(-k0 int_0^t <e^γβV>(t') dt')
 def EATR_CDF(time_indices, k0, log_average_exp, cores=1, logTrick=False):
 
-    if cores > 1:
-        p = mp.Pool(cores)
-        func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
-        cum_hazard = np.array(p.map(func, time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([EATR_calculate_cum_hazard(log_average_exp, logTrick, time_index) for time_index in time_indices])
+    func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
+    cum_hazard = _map_with_cores(func, time_indices, cores)
     return 1 - np.exp(-k0 * cum_hazard)
     
 # EATR CDF Fit Least Squares Objective
@@ -583,7 +542,7 @@ def EATR_MLE_rate(data, beta, event=None, gamma_bounds=(0.,1.), cores=1, logTric
     # Get final_time_indices
     final_time_indices = np.array([int(len(traj)-1) for traj in data])
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
 
     # Helper function to get ln<e^γβV> for a given γ, then the -log L for γ.
     def neg_log_l(gamma):
@@ -608,13 +567,8 @@ def EATR_MLE_rate(data, beta, event=None, gamma_bounds=(0.,1.), cores=1, logTric
 
     # Calculate k0*
     log_average_exp = avg_exponential(data, beta, gamma, logTrick=logTrick, bias_shift=bias_shift)
-    if cores > 1:
-        p = mp.Pool(cores)
-        func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
-        cum_hazard = np.array(p.map(func, final_time_indices))
-        p.close()
-    else:
-        cum_hazard = np.array([EATR_calculate_cum_hazard(log_average_exp, logTrick, final_time_index) for final_time_index in final_time_indices])
+    func = partial(EATR_calculate_cum_hazard, log_average_exp, logTrick)
+    cum_hazard = _map_with_cores(func, final_time_indices, cores)
     k0 = event.sum() / cum_hazard.sum()
 
     return np.array([k0, gamma])
@@ -625,14 +579,11 @@ def EATR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bound
     # Get final_time_indices
     final_time_indices = np.array([int(len(traj)-1) for traj in data])
     if event is None:
-        event = np.array([True for index in final_time_indices])
+        event = _default_event(final_time_indices)
 
     # initial guess should be similar to the observed rate if not specified
     if init_guess is None:
         init_guess = (iMetaD_invMRT(data, beta, event=event, bias_shift=bias_shift),0.9)
-        #colvar_maxrow_count = max(len(traj[:,0]) for traj in data)
-        #time_list = np.linspace(0,colvar_maxrow_count*(data[0][1,0]-data[0][0,0]),colvar_maxrow_count)
-        #init_guess = (1/np.mean(time_list[final_time_indices]),0.9)
 
     # 2-parameter CDF fitting for gamma and k0
     ecdfx_indices = np.sort(final_time_indices)
@@ -667,54 +618,3 @@ def EATR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bound
         optimizer.maximize(init_points=25, n_iter=100)
         cdf_result = (np.exp(optimizer.max['params']['logk0']),optimizer.max['params']['gamma'])
     return cdf_result
-
-"""
-# EATR-OPES k0 (create unbiased rate estimate)
-def EATR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, init_guess=None, logTrick=False, reg_lambda=0.0, kIMD=1.0, do_bopt=False, bias_shift=0.0):
-
-    # Get final_time_indices
-    final_time_indices = np.array([int(len(traj)-1) for traj in data])
-    if event is None:
-        event = np.array([True for index in final_time_indices])
-
-    # initial guess should be similar to the observed rate if not specified
-    if init_guess is None:
-        colvar_maxrow_count = max(len(traj[:,0]) for traj in data)
-        time_list = np.linspace(0,colvar_maxrow_count*(data[0][1,0]-data[0][0,0]),colvar_maxrow_count)
-        init_guess = (1/np.mean(time_list[final_time_indices]),0.9)
-
-    # 2-parameter CDF fitting for gamma and k0
-    ecdfx_indices = np.sort(final_time_indices)
-    ecdfy = np.arange(1, event.sum()+1) / len(data)
-    
-    # Helper functions to calculate ln<e^βγV>
-    def cdf(time_indices, k0, gamma):
-        log_average_exp = avg_exponential(data, beta, gamma, logTrick=logTrick, bias_shift=bias_shift)
-        return EATR_CDF(time_indices, k0, log_average_exp, cores=cores, logTrick=logTrick)
-    def get_cost(params):
-        log_average_exp = avg_exponential(data, beta, params[1], logTrick=logTrick, bias_shift=bias_shift)
-        return EATR_leastsq_cost(params, ecdfx_indices, ecdfy, log_average_exp, cores=cores, logTrick=logTrick, reg_lambda=reg_lambda, kIMD=kIMD)
-
-    if not do_bopt: # No Bayesian Optimization method: instead use Bounded Brent (if λ > 0) or Levenberg-Marquardt (if λ = 0) method
-        options = {
-                "maxiter":100000*len(ecdfy)
-        }
-        if reg_lambda == 0.0:
-            cdf_result = optimize.curve_fit(cdf, ecdfx_indices, ecdfy, p0=init_guess, bounds=([k_bounds[0],gamma_bounds[0]],[k_bounds[1],gamma_bounds[1]]), max_nfev=100000*len(ecdfy))[0]
-        else:
-            cdf_result = optimize.minimize(get_cost,init_guess,options=options).x
-    else:
-        acquisition_function = acquisition.ExpectedImprovement(xi=0.1,exploration_decay=0.97,exploration_decay_delay=50)
-        optimizer = bopt(
-                f = lambda logk0, gamma : -get_cost((np.exp(logk0),gamma)),
-                acquisition_function = acquisition_function,
-                pbounds = {'logk0': (np.log(init_guess[0])-35,np.log(1/np.mean(vmb_average[final_time_indices[event],0]))+5), 'gamma': gamma_bounds},
-                verbose = 0,
-                random_state = 1
-        )
-        optimizer.probe(params={'logk0': np.log(init_guess[0]), 'gamma': init_guess[1]})
-        optimizer.maximize(init_points=25, n_iter=100)
-        cdf_result = (np.exp(optimizer.max['params']['logk0']),optimizer.max['params']['gamma'])
-    return cdf_result
-
-"""

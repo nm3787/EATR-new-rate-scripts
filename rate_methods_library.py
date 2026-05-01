@@ -8,7 +8,6 @@ else:
     trapezoid = np.trapz
 
 import sys
-import random
 from scipy import optimize
 import warnings
 import multiprocessing as mp
@@ -140,8 +139,10 @@ def get_event(data, maxlen=None, maxtime=None, num_events=None, log_files=None, 
 def bootstrap(sample,func,nresamples,event=None,double=False,return_stat=False):
     stat = []
     stat2 = []
-    for i in range(nresamples):
-        indices = random.choices(list(range(len(sample))), k=len(sample))
+    rng = np.random.default_rng()
+    sample_size = len(sample)
+    index_sets = rng.integers(0, sample_size, size=(nresamples, sample_size))
+    for indices in index_sets:
         resample = [sample[index] for index in indices]
         if event is not None:
             resampled_event = np.array([event[index] for index in indices])
@@ -160,7 +161,7 @@ def bootstrap(sample,func,nresamples,event=None,double=False,return_stat=False):
             return np.std(stat), np.std(stat2)
     else:
         if return_stat:
-            return stat
+            return np.array(stat)
         else:
             return np.std(stat)
     

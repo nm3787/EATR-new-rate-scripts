@@ -255,7 +255,7 @@ The command-line interface currently expects each set to be labeled by a numeric
 .venv/bin/python scripts/run_example_analyses.py
 ```
 
-That script writes:
+That script writes bootstrap-backed summaries and plots with rate units in `s^-1` and pace units in `ps`. The current example workflow uses `50` trajectory-resampling bootstrap replicas per analysis. The generated files are:
 
 - [wt_regular_eatr_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_summary.json)
 - [wt_regular_eatr_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_vs_pace.png)
@@ -265,6 +265,7 @@ That script writes:
 - [wt_observed_rate_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_observed_rate_vs_pace.png)
 - [opes_flooding_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_summary.json)
 - [opes_flooding_diagnostics.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_diagnostics.png)
+- [opes_observed_rate_vs_barrier.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_observed_rate_vs_barrier.png)
 
 ## Example Results Produced In This Repository
 

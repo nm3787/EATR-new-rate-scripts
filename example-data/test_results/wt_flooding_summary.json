@@ -1,12 +1,16 @@
 {
   "temperature_K": 312.0,
   "timeunit_seconds": 1e-15,
+  "bootstrap_resamples": 100,
   "sets": [
     {
       "set": "eruns_pace1e2",
       "pace_steps": 100.0,
       "pace_ps": 1.0,
       "obs_rate": 462560364127.51855,
+      "obs_rate_std": 20215083230.06562,
+      "obs_rate_ci95_low": 424595534994.28986,
+      "obs_rate_ci95_high": 498163046272.7837,
       "ks_stat": 3.250024412392018,
       "p_value": 1.3378925745044512e-09,
       "ln_avg_exp_beta_v_gamma1": 18.766786434319624
@@ -16,6 +20,9 @@
       "pace_steps": 1000.0,
       "pace_ps": 10.0,
       "obs_rate": 88105726872.24667,
+      "obs_rate_std": 4794153212.815805,
+      "obs_rate_ci95_low": 80806461513.1454,
+      "obs_rate_ci95_high": 98145435529.39883,
       "ks_stat": 1.3699738004842503,
       "p_value": 0.04686322091314732,
       "ln_avg_exp_beta_v_gamma1": 15.052635411479482
@@ -25,6 +32,9 @@
       "pace_steps": 10000.0,
       "pace_ps": 100.0,
       "obs_rate": 16149870801.033592,
+      "obs_rate_std": 812296585.9036582,
+      "obs_rate_ci95_low": 14676852364.278336,
+      "obs_rate_ci95_high": 17707505467.13068,
       "ks_stat": 1.7706721279311706,
       "p_value": 0.003782340067301715,
       "ln_avg_exp_beta_v_gamma1": 10.475280181948314
@@ -34,6 +44,9 @@
       "pace_steps": 20000.0,
       "pace_ps": 200.0,
       "obs_rate": 10815487778.49881,
+      "obs_rate_std": 583622727.0087298,
+      "obs_rate_ci95_low": 9852473503.768736,
+      "obs_rate_ci95_high": 12122704267.974535,
       "ks_stat": 2.0273111598035323,
       "p_value": 0.0005384403184339748,
       "ln_avg_exp_beta_v_gamma1": 10.447596463575298
@@ -43,6 +56,9 @@
       "pace_steps": 50000.0,
       "pace_ps": 500.0,
       "obs_rate": 7636502481.863306,
+      "obs_rate_std": 510038266.08442104,
+      "obs_rate_ci95_low": 6868192650.645027,
+      "obs_rate_ci95_high": 8841253087.525902,
       "ks_stat": 1.4038049256028389,
       "p_value": 0.03884419305389142,
       "ln_avg_exp_beta_v_gamma1": 7.502244370241754
@@ -52,6 +68,9 @@
       "pace_steps": 100000.0,
       "pace_ps": 1000.0,
       "obs_rate": 5351313747.525017,
+      "obs_rate_std": 357302584.8529752,
+      "obs_rate_ci95_low": 4658130518.412121,
+      "obs_rate_ci95_high": 6000654826.135473,
       "ks_stat": 1.5190054665107324,
       "p_value": 0.019809195979877958,
       "ln_avg_exp_beta_v_gamma1": 5.827092248392668
@@ -61,6 +80,9 @@
       "pace_steps": 500000.0,
       "pace_ps": 5000.0,
       "obs_rate": 3375755325.254025,
+      "obs_rate_std": 280251096.19886565,
+      "obs_rate_ci95_low": 2935017066.5550294,
+      "obs_rate_ci95_high": 3992573929.010523,
       "ks_stat": 1.4011870407173221,
       "p_value": 0.039418866892433346,
       "ln_avg_exp_beta_v_gamma1": 3.8638125613190173
@@ -70,6 +92,9 @@
       "pace_steps": 1000000.0,
       "pace_ps": 10000.0,
       "obs_rate": 2621575566.915716,
+      "obs_rate_std": 183484308.23561823,
+      "obs_rate_ci95_low": 2285604068.089115,
+      "obs_rate_ci95_high": 2995135873.6440606,
       "ks_stat": 1.1492789987402205,
       "p_value": 0.14243081746635744,
       "ln_avg_exp_beta_v_gamma1": 2.4494083174032615
@@ -9739,6 +9764,112 @@
       21.24295206358816,
       21.179800022396144,
       21.18427807979582
+    ]
+  },
+  "flooding_fit_all_sets_bootstrap": {
+    "n_resamples": 100,
+    "gamma_std": 0.004214937889914332,
+    "gamma_ci95_low": 0.3634748775430757,
+    "gamma_ci95_high": 0.3819660112501051,
+    "logk0_std": NaN,
+    "logk0_ci95_low": NaN,
+    "logk0_ci95_high": NaN,
+    "per_set": [
+      {
+        "set": "eruns_pace1e2",
+        "obs_rate_std": 20215083230.06562,
+        "obs_rate_ci95_low": 424595534994.28986,
+        "obs_rate_ci95_high": 498163046272.7837
+      },
+      {
+        "set": "eruns_pace1e3",
+        "obs_rate_std": 4794153212.815805,
+        "obs_rate_ci95_low": 80806461513.1454,
+        "obs_rate_ci95_high": 98145435529.39883
+      },
+      {
+        "set": "eruns_pace1e4",
+        "obs_rate_std": 812296585.9036582,
+        "obs_rate_ci95_low": 14676852364.278336,
+        "obs_rate_ci95_high": 17707505467.13068
+      },
+      {
+        "set": "eruns_pace2e4",
+        "obs_rate_std": 583622727.0087298,
+        "obs_rate_ci95_low": 9852473503.768736,
+        "obs_rate_ci95_high": 12122704267.974535
+      },
+      {
+        "set": "eruns_pace5e4",
+        "obs_rate_std": 510038266.08442104,
+        "obs_rate_ci95_low": 6868192650.645027,
+        "obs_rate_ci95_high": 8841253087.525902
+      },
+      {
+        "set": "eruns_pace1e5",
+        "obs_rate_std": 357302584.8529752,
+        "obs_rate_ci95_low": 4658130518.412121,
+        "obs_rate_ci95_high": 6000654826.135473
+      },
+      {
+        "set": "eruns_pace5e5",
+        "obs_rate_std": 280251096.19886565,
+        "obs_rate_ci95_low": 2935017066.5550294,
+        "obs_rate_ci95_high": 3992573929.010523
+      },
+      {
+        "set": "eruns_pace1e6",
+        "obs_rate_std": 183484308.23561823,
+        "obs_rate_ci95_low": 2285604068.089115,
+        "obs_rate_ci95_high": 2995135873.6440606
+      }
+    ]
+  },
+  "flooding_fit_filtered_pace_ge_100ps_bootstrap": {
+    "n_resamples": 100,
+    "gamma_std": 0.027085293241517282,
+    "gamma_ci95_low": 0.26625475106650687,
+    "gamma_ci95_high": 0.3819660112501051,
+    "logk0_std": NaN,
+    "logk0_ci95_low": NaN,
+    "logk0_ci95_high": NaN,
+    "per_set": [
+      {
+        "set": "eruns_pace1e4",
+        "obs_rate_std": 841746667.3494879,
+        "obs_rate_ci95_low": 14792791561.24691,
+        "obs_rate_ci95_high": 17674132336.078777
+      },
+      {
+        "set": "eruns_pace2e4",
+        "obs_rate_std": 534001633.4049905,
+        "obs_rate_ci95_low": 9958683104.516907,
+        "obs_rate_ci95_high": 11965408214.937046
+      },
+      {
+        "set": "eruns_pace5e4",
+        "obs_rate_std": 442534879.6790171,
+        "obs_rate_ci95_low": 6776138720.02525,
+        "obs_rate_ci95_high": 8431127616.475353
+      },
+      {
+        "set": "eruns_pace1e5",
+        "obs_rate_std": 369519023.64263153,
+        "obs_rate_ci95_low": 4704136425.184974,
+        "obs_rate_ci95_high": 6044148214.8369255
+      },
+      {
+        "set": "eruns_pace5e5",
+        "obs_rate_std": 266052932.14769268,
+        "obs_rate_ci95_low": 2963025864.626989,
+        "obs_rate_ci95_high": 4056621077.540257
+      },
+      {
+        "set": "eruns_pace1e6",
+        "obs_rate_std": 181982638.07106337,
+        "obs_rate_ci95_low": 2299807169.4436035,
+        "obs_rate_ci95_high": 2978465046.2573743
+      }
     ]
   }
 }

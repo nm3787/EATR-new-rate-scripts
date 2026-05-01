@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import os
-from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +18,8 @@ XDG_CACHE_DIR = ROOT / ".cache"
 
 TIMEUNIT_SECONDS = 1e-15
 TEMPERATURE_K = 312.0
+BOOTSTRAP_RESAMPLES = 50
+BOOTSTRAP_SEED = 20260501
 
 
 def ensure_output_root() -> None:
@@ -46,20 +47,125 @@ def pace_to_ps(pace_steps: float) -> float:
     return pace_steps * 10.0 * 1e-3
 
 
+def percentile_interval(samples: np.ndarray, level: float = 95.0) -> tuple[float, float]:
+    alpha = (100.0 - level) / 2.0
+    return float(np.percentile(samples, alpha)), float(np.percentile(samples, 100.0 - alpha))
+
+
+def bootstrap_index_sets(size: int, n_resamples: int, rng: np.random.Generator) -> np.ndarray:
+    return rng.integers(0, size, size=(n_resamples, size))
+
+
+def build_prepared_data(data: list[np.ndarray], event: np.ndarray, bias_shift: float = 0.0) -> dict[str, object]:
+    row_count = max(len(traj[:, 0]) for traj in data)
+    dt = float(data[0][1, 0] - data[0][0, 0])
+    time_grid = np.linspace(0.0, row_count * dt, row_count)
+    v_data = np.full((len(data), row_count), np.nan)
+    final_time_indices = np.array([len(traj) - 1 for traj in data], dtype=int)
+    final_times = np.array([traj[-1, 0] for traj in data], dtype=float)
+    for traj_index, traj in enumerate(data):
+        v_data[traj_index, : len(traj)] = traj[:, 1] + bias_shift
+    return {
+        "data": data,
+        "event": np.array(event, dtype=bool),
+        "time_grid": time_grid,
+        "v_data": v_data,
+        "final_time_indices": final_time_indices,
+        "final_times": final_times,
+    }
+
+
+def resample_prepared_data(prepared: dict[str, object], indices: np.ndarray) -> dict[str, object]:
+    return {
+        "data": None,
+        "event": np.asarray(prepared["event"])[indices],
+        "time_grid": prepared["time_grid"],
+        "v_data": np.asarray(prepared["v_data"])[indices],
+        "final_time_indices": np.asarray(prepared["final_time_indices"])[indices],
+        "final_times": np.asarray(prepared["final_times"])[indices],
+    }
+
+
+def cumulative_trapezoid_grid(time_grid: np.ndarray, values: np.ndarray) -> np.ndarray:
+    increments = 0.5 * (values[:-1] + values[1:]) * np.diff(time_grid)
+    return np.concatenate(([0.0], np.cumsum(increments)))
+
+
+def eatr_log_average_exp(prepared: dict[str, object], beta: float, gamma: float) -> np.ndarray:
+    mean_exp = np.nanmean(np.exp(beta * gamma * np.asarray(prepared["v_data"], dtype=float)), axis=0)
+    return np.log(mean_exp)
+
+
+def eatr_mle_from_prepared(prepared: dict[str, object], beta: float, gamma_bounds: tuple[float, float] = (0.0, 1.0)) -> dict[str, float | np.ndarray]:
+    event = np.asarray(prepared["event"], dtype=bool)
+    final_time_indices = np.asarray(prepared["final_time_indices"], dtype=int)
+    time_grid = np.asarray(prepared["time_grid"], dtype=float)
+
+    def objective(gamma: float) -> float:
+        log_average_exp = eatr_log_average_exp(prepared, beta, gamma)
+        cum_hazard_grid = cumulative_trapezoid_grid(time_grid, np.exp(log_average_exp))
+        cum_hazard = cum_hazard_grid[final_time_indices]
+        log_hazard = log_average_exp[final_time_indices]
+        mean_t = cum_hazard.sum() / event.sum()
+        log_l = -event.sum() * np.log(mean_t) + log_hazard[event].sum() - (1.0 / mean_t) * cum_hazard.sum()
+        return -float(log_l)
+
+    optimum = optimize.minimize_scalar(objective, bounds=gamma_bounds, method="bounded")
+    gamma = float(optimum.x)
+    log_average_exp = eatr_log_average_exp(prepared, beta, gamma)
+    cum_hazard_grid = cumulative_trapezoid_grid(time_grid, np.exp(log_average_exp))
+    cum_hazard = cum_hazard_grid[final_time_indices]
+    k0 = float(event.sum() / cum_hazard.sum())
+    return {
+        "k0": k0,
+        "gamma": gamma,
+        "log_average_exp": np.column_stack((time_grid, log_average_exp)),
+    }
+
+
+def bootstrap_regular_eatr(prepared: dict[str, object], beta: float, n_resamples: int, rng: np.random.Generator) -> dict[str, float]:
+    index_sets = bootstrap_index_sets(len(np.asarray(prepared["event"])), n_resamples, rng)
+    sample_ln_k = []
+    sample_gamma = []
+    for indices in index_sets:
+        resampled = resample_prepared_data(prepared, indices)
+        fit = eatr_mle_from_prepared(resampled, beta)
+        sample_ln_k.append(float(np.log(fit["k0"])))
+        sample_gamma.append(float(fit["gamma"]))
+    ln_k_samples = np.array(sample_ln_k, dtype=float)
+    gamma_samples = np.array(sample_gamma, dtype=float)
+    ln_k_ci = percentile_interval(ln_k_samples)
+    gamma_ci = percentile_interval(gamma_samples)
+    return {
+        "n_resamples": int(n_resamples),
+        "ln_k_std": float(np.std(ln_k_samples)),
+        "ln_k_ci95_low": ln_k_ci[0],
+        "ln_k_ci95_high": ln_k_ci[1],
+        "gamma_std": float(np.std(gamma_samples)),
+        "gamma_ci95_low": gamma_ci[0],
+        "gamma_ci95_high": gamma_ci[1],
+    }
+
+
 def run_regular_wt_eatr() -> dict[str, object]:
     wt_root = EXAMPLE_ROOT / "E_end_end_distance_wt"
     pace_dirs = sorted(wt_root.glob("eruns_pace*"), key=lambda path: float(path.name.split("pace")[1]))
     summaries: list[dict[str, float | str]] = []
     beta = beta_value()
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
 
     for pace_dir in pace_dirs:
         pace_steps = float(pace_dir.name.split("pace")[1])
         data = RM.get_data(sorted_run_files(pace_dir, "metad.colvar"), 0, 2, acc_col=4, time_scale_factor=TIMEUNIT_SECONDS)
         event = RM.get_event(data, log_files=sorted_run_files(pace_dir, "p.log"), quiet=True)
-        mle_rate, mle_gamma = RM.EATR_MLE_rate(data, beta, event=event, gamma_bounds=(0.0, 1.0), cores=1, logTrick=False, do_bopt=False, bias_shift=0.0)
-        log_average_exp_mle = RM.avg_exponential(data, beta, mle_gamma, bias_shift=0.0)
-        final_time_indices = np.array([int(len(traj) - 1) for traj in data], dtype=int)
+        prepared = build_prepared_data(data, event, bias_shift=0.0)
+        mle_fit = eatr_mle_from_prepared(prepared, beta)
+        mle_rate = float(mle_fit["k0"])
+        mle_gamma = float(mle_fit["gamma"])
+        log_average_exp_mle = mle_fit["log_average_exp"]
+        final_time_indices = np.asarray(prepared["final_time_indices"], dtype=int)
         mle_ks_stat, mle_p_value = ks_censored_ks(final_time_indices[event], np.exp(np.log(mle_rate)), log_average_exp_mle)
+        mle_bootstrap = bootstrap_regular_eatr(prepared, beta, BOOTSTRAP_RESAMPLES, rng)
 
         cdf_ln_k = math.nan
         cdf_gamma = math.nan
@@ -88,13 +194,25 @@ def run_regular_wt_eatr() -> dict[str, object]:
                 "eatr_cdf_gamma": cdf_gamma,
                 "eatr_mle_ks_stat": float(mle_ks_stat),
                 "eatr_mle_p_value": float(mle_p_value),
+                "eatr_mle_bootstrap_n": int(mle_bootstrap["n_resamples"]),
+                "eatr_mle_ln_k_std": float(mle_bootstrap["ln_k_std"]),
+                "eatr_mle_ln_k_ci95_low": float(mle_bootstrap["ln_k_ci95_low"]),
+                "eatr_mle_ln_k_ci95_high": float(mle_bootstrap["ln_k_ci95_high"]),
+                "eatr_mle_gamma_std": float(mle_bootstrap["gamma_std"]),
+                "eatr_mle_gamma_ci95_low": float(mle_bootstrap["gamma_ci95_low"]),
+                "eatr_mle_gamma_ci95_high": float(mle_bootstrap["gamma_ci95_high"]),
                 "eatr_cdf_ks_stat": cdf_ks_stat,
                 "eatr_cdf_p_value": cdf_p_value,
                 "eatr_cdf_status": cdf_status,
             }
         )
 
-    output = {"temperature_K": TEMPERATURE_K, "timeunit_seconds": TIMEUNIT_SECONDS, "sets": summaries}
+    output = {
+        "temperature_K": TEMPERATURE_K,
+        "timeunit_seconds": TIMEUNIT_SECONDS,
+        "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
+        "sets": summaries,
+    }
     with open(OUTPUT_ROOT / "wt_regular_eatr_summary.json", "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
     plot_regular_eatr(summaries)
@@ -108,17 +226,19 @@ def plot_regular_eatr(summaries: list[dict[str, float | str]]) -> None:
     ln_k_cdf = np.array([entry["eatr_cdf_ln_k"] for entry in summaries], dtype=float)
     gamma_mle = np.array([entry["eatr_mle_gamma"] for entry in summaries], dtype=float)
     gamma_cdf = np.array([entry["eatr_cdf_gamma"] for entry in summaries], dtype=float)
+    ln_k_mle_err = np.array([entry["eatr_mle_ln_k_std"] for entry in summaries], dtype=float)
+    gamma_mle_err = np.array([entry["eatr_mle_gamma_std"] for entry in summaries], dtype=float)
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
-    axes[0].plot(pace_ps, ln_k_mle, marker="o", label="EATR MLE")
+    axes[0].errorbar(pace_ps, ln_k_mle, yerr=ln_k_mle_err, marker="o", capsize=3, label="EATR MLE bootstrap σ")
     axes[0].plot(pace_ps, ln_k_cdf, marker="s", label="EATR CDF")
     axes[0].set_xscale("log")
     axes[0].set_xlabel("MetaD hill deposition pace (ps)")
-    axes[0].set_ylabel("Estimated ln k0")
+    axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
     axes[0].set_title("WT-MetaD Regular EATR")
     axes[0].legend()
 
-    axes[1].plot(pace_ps, gamma_mle, marker="o", label="EATR MLE")
+    axes[1].errorbar(pace_ps, gamma_mle, yerr=gamma_mle_err, marker="o", capsize=3, label="EATR MLE bootstrap σ")
     axes[1].plot(pace_ps, gamma_cdf, marker="s", label="EATR CDF")
     axes[1].set_xscale("log")
     axes[1].set_xlabel("MetaD hill deposition pace (ps)")
@@ -141,7 +261,8 @@ def ks_censored_ks(final_time_indices: np.ndarray, rate: float, log_average_exp:
 def load_flooding_set(colvar_files: list[str], log_files: list[str], bias_col: int, acc_col: int | None, bias_shift: float, cdf_fit: bool) -> dict[str, object]:
     data = RM.get_data(colvar_files, 0, bias_col, acc_col=acc_col, time_scale_factor=TIMEUNIT_SECONDS)
     event = RM.get_event(data, log_files=log_files, quiet=True)
-    final_times = np.array([traj[-1, 0] for traj in data], dtype=float)
+    prepared = build_prepared_data(data, event, bias_shift=bias_shift)
+    final_times = np.asarray(prepared["final_times"], dtype=float)
     obs_rate = float(event.sum() / final_times.sum())
     if cdf_fit:
         ecdfxs = np.sort(final_times)
@@ -149,26 +270,56 @@ def load_flooding_set(colvar_files: list[str], log_files: list[str], bias_col: i
         obs_rate = float(optimize.curve_fit(lambda t, k: 1 - np.exp(-k * t), ecdfxs[: event.sum()], ecdfys[: event.sum()], p0=obs_rate)[0][0])
     ks_stat, p_value = ksc.ks_1samp_censored(final_times, event, lambda t: np.exp(-obs_rate * t))
 
-    colvar_row_counts = np.sort([len(traj[:, 0]) for traj in data])
-    max_index = colvar_row_counts[-1]
-    min_index = 0
-    v_data = np.full((len(data), max_index - min_index), np.nan)
-    for traj_index, traj in enumerate(data):
-        v_data[traj_index, : (min(len(traj), max_index) - min_index)] = traj[min_index:max_index, 1] + bias_shift
-
     return {
         "data": data,
         "event": event,
         "obs_rate": obs_rate,
         "ks_stat": float(ks_stat),
         "p_value": float(p_value),
-        "v_data": v_data,
-        "avg_bias_gamma1": float(np.log(np.mean(np.nanmean(np.exp(beta_value() * v_data), axis=0)))),
+        "v_data": prepared["v_data"],
+        "time_grid": prepared["time_grid"],
+        "final_times": prepared["final_times"],
+        "final_time_indices": prepared["final_time_indices"],
+        "avg_bias_gamma1": float(np.log(np.mean(np.nanmean(np.exp(beta_value() * np.asarray(prepared["v_data"], dtype=float)), axis=0)))),
     }
 
 
 def beta_value() -> float:
     return 1.0 / (8.314462618e-3 * TEMPERATURE_K)
+
+
+def log_mean_exp(values: np.ndarray, axis: int) -> np.ndarray:
+    max_values = np.nanmax(values, axis=axis, keepdims=True)
+    shifted = np.exp(values - max_values)
+    return np.squeeze(max_values, axis=axis) + np.log(np.nanmean(shifted, axis=axis))
+
+
+def flooding_log_average(spec: dict[str, object], gamma: float, beta: float) -> float:
+    scaled_bias = beta * gamma * np.asarray(spec["v_data"], dtype=float)
+    log_mean_over_runs = log_mean_exp(scaled_bias, axis=0)
+    return float(log_mean_exp(log_mean_over_runs, axis=0))
+
+
+def flooding_ln_k0_by_set(set_specs: list[dict[str, object]], gamma: float, beta: float, axis_first: int = 0) -> list[float]:
+    ln_k0s = []
+    for spec in set_specs:
+        ln_avg = flooding_log_average(spec, gamma, beta)
+        ln_k0s.append(float(np.log(spec["obs_rate"]) - ln_avg))
+    return ln_k0s
+
+
+def flooding_best_fit(set_specs: list[dict[str, object]], axis_first: int = 0) -> dict[str, object]:
+    beta = beta_value()
+    objective = lambda gamma: np.var(flooding_ln_k0_by_set(set_specs, float(gamma), beta, axis_first=axis_first))
+    optimum = optimize.minimize_scalar(objective, bounds=(0.0, 1.0), method="bounded")
+    gamma_best = float(optimum.x)
+    ln_k0_per_set_best = flooding_ln_k0_by_set(set_specs, gamma_best, beta, axis_first=axis_first)
+    logk0_best = float(np.mean(ln_k0_per_set_best))
+    return {
+        "gamma_best": gamma_best,
+        "logk0_best": logk0_best,
+        "ln_k0_per_set_best": ln_k0_per_set_best,
+    }
 
 
 def flooding_diagnostics(set_specs: list[dict[str, object]], axis_first: int = 0) -> dict[str, object]:
@@ -179,38 +330,76 @@ def flooding_diagnostics(set_specs: list[dict[str, object]], axis_first: int = 0
     var_ln_k0 = []
 
     for gamma in gamma_grid:
-        ln_k0s = []
-        for spec in set_specs:
-            avg = np.mean(np.nanmean(np.exp(beta * gamma * spec["v_data"]), axis=axis_first))
-            ln_k0s.append(float(np.log(spec["obs_rate"]) - np.log(avg)))
+        ln_k0s = flooding_ln_k0_by_set(set_specs, float(gamma), beta, axis_first=axis_first)
         per_set_ln_k0.append(ln_k0s)
         mean_ln_k0.append(float(np.mean(ln_k0s)))
         var_ln_k0.append(float(np.var(ln_k0s)))
 
-    objective = lambda gamma: np.var(
-        [
-            np.log(spec["obs_rate"]) - np.log(np.mean(np.nanmean(np.exp(beta * gamma * spec["v_data"]), axis=axis_first)))
-            for spec in set_specs
-        ]
-    )
-    optimum = optimize.minimize_scalar(objective, bounds=(0.0, 1.0), method="bounded")
-    gamma_best = float(optimum.x)
-    avg_terms = [float(np.mean(np.nanmean(np.exp(beta * gamma_best * spec["v_data"]), axis=axis_first))) for spec in set_specs]
-    ln_k0_per_set_best = [float(np.log(spec["obs_rate"]) - np.log(avg_term)) for spec, avg_term in zip(set_specs, avg_terms)]
-    logk0_best = float(np.mean(ln_k0_per_set_best))
+    best_fit = flooding_best_fit(set_specs, axis_first=axis_first)
 
     return {
         "gamma_grid": gamma_grid.tolist(),
         "per_set_ln_k0": per_set_ln_k0,
         "mean_ln_k0": mean_ln_k0,
         "var_ln_k0": var_ln_k0,
-        "gamma_best": gamma_best,
-        "logk0_best": logk0_best,
-        "ln_k0_per_set_best": ln_k0_per_set_best,
+        "gamma_best": best_fit["gamma_best"],
+        "logk0_best": best_fit["logk0_best"],
+        "ln_k0_per_set_best": best_fit["ln_k0_per_set_best"],
     }
 
 
-def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: list[str], output_name: str, reference_lines: dict[str, float] | None = None) -> None:
+def bootstrap_flooding(set_specs: list[dict[str, object]], n_resamples: int, rng: np.random.Generator) -> dict[str, object]:
+    gamma_samples = []
+    logk0_samples = []
+    obs_rate_samples = np.full((n_resamples, len(set_specs)), np.nan)
+    index_sets = [bootstrap_index_sets(len(np.asarray(spec["event"])), n_resamples, rng) for spec in set_specs]
+
+    for bootstrap_index in range(n_resamples):
+        resampled_specs = []
+        for set_index, spec in enumerate(set_specs):
+            indices = index_sets[set_index][bootstrap_index]
+            event = np.asarray(spec["event"], dtype=bool)[indices]
+            final_times = np.asarray(spec["final_times"], dtype=float)[indices]
+            obs_rate = float(event.sum() / final_times.sum())
+            obs_rate_samples[bootstrap_index, set_index] = obs_rate
+            resampled_specs.append(
+                {
+                    "obs_rate": obs_rate,
+                    "v_data": np.asarray(spec["v_data"], dtype=float)[indices],
+                }
+            )
+        best_fit = flooding_best_fit(resampled_specs)
+        gamma_samples.append(float(best_fit["gamma_best"]))
+        logk0_samples.append(float(best_fit["logk0_best"]))
+
+    gamma_samples_array = np.array(gamma_samples, dtype=float)
+    logk0_samples_array = np.array(logk0_samples, dtype=float)
+    gamma_ci = percentile_interval(gamma_samples_array)
+    logk0_ci = percentile_interval(logk0_samples_array)
+    per_set = []
+    for set_index, spec in enumerate(set_specs):
+        obs_ci = percentile_interval(obs_rate_samples[:, set_index])
+        per_set.append(
+            {
+                "set": spec["label"],
+                "obs_rate_std": float(np.std(obs_rate_samples[:, set_index])),
+                "obs_rate_ci95_low": obs_ci[0],
+                "obs_rate_ci95_high": obs_ci[1],
+            }
+        )
+    return {
+        "n_resamples": int(n_resamples),
+        "gamma_std": float(np.std(gamma_samples_array)),
+        "gamma_ci95_low": gamma_ci[0],
+        "gamma_ci95_high": gamma_ci[1],
+        "logk0_std": float(np.std(logk0_samples_array)),
+        "logk0_ci95_low": logk0_ci[0],
+        "logk0_ci95_high": logk0_ci[1],
+        "per_set": per_set,
+    }
+
+
+def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: list[str], output_name: str, bootstrap_stats: dict[str, object] | None = None, reference_lines: dict[str, float] | None = None) -> None:
     plt = pyplot()
     gamma_grid = np.array(diagnostics["gamma_grid"], dtype=float)
     per_set = np.array(diagnostics["per_set_ln_k0"], dtype=float)
@@ -224,7 +413,7 @@ def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: l
     for idx, label in enumerate(set_labels):
         axes[0].plot(gamma_grid, per_set[:, idx], label=label)
     axes[0].set_xlabel("γ")
-    axes[0].set_ylabel("Predicted ln k0")
+    axes[0].set_ylabel(r"Predicted ln($k_0$ / s$^{-1}$)")
     axes[0].set_title(f"{title}: ln k0 by set")
     axes[0].legend(fontsize=8, ncol=2)
 
@@ -237,7 +426,7 @@ def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: l
         for name, value in reference_lines.items():
             axes[1].axhline(value, linestyle=":", label=f"{name}={value:.3f}")
     axes[1].set_xlabel("γ")
-    axes[1].set_ylabel("Mean ln k0")
+    axes[1].set_ylabel(r"Mean ln($k_0$ / s$^{-1}$)")
     axes[1].set_title(f"{title}: mean ± std")
     axes[1].legend(fontsize=8)
 
@@ -247,7 +436,29 @@ def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: l
     axes[2].set_ylabel("Var[ln k0]")
     axes[2].set_title(f"{title}: variance")
 
+    if bootstrap_stats is not None:
+        fig.suptitle(
+            f"bootstrap σ(γ*)={float(bootstrap_stats['gamma_std']):.3f}, "
+            f"σ(ln k0*)={float(bootstrap_stats['logk0_std']):.3f}",
+            fontsize=10,
+            y=1.02,
+        )
+
     fig.savefig(OUTPUT_ROOT / output_name, dpi=220)
+    plt.close(fig)
+
+
+def plot_opes_observed_rate_vs_barrier(set_specs: list[dict[str, object]], bootstrap_stats: dict[str, object]) -> None:
+    plt = pyplot()
+    barriers = np.array([spec["barrier_kj_mol"] for spec in set_specs], dtype=float)
+    obs_rate = np.array([spec["obs_rate"] for spec in set_specs], dtype=float)
+    obs_rate_err = np.array([entry["obs_rate_std"] for entry in bootstrap_stats["per_set"]], dtype=float)
+    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
+    ax.errorbar(barriers, obs_rate, yerr=obs_rate_err, marker="o", capsize=3)
+    ax.set_xlabel(r"OPES barrier (kJ mol$^{-1}$)")
+    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (s$^{-1}$)")
+    ax.set_title("OPES observed rate by barrier")
+    fig.savefig(OUTPUT_ROOT / "opes_observed_rate_vs_barrier.png", dpi=220)
     plt.close(fig)
 
 
@@ -255,7 +466,7 @@ def run_opes_flooding() -> dict[str, object]:
     opes_root = EXAMPLE_ROOT / "E_end_end_distance_opes"
     set_specs = []
     labels = []
-    barriers = []
+    rng = np.random.default_rng(BOOTSTRAP_SEED + 1)
     for path in sorted(opes_root.glob("eruns_barr*"), key=lambda item: float(item.name.split("barr")[1])):
         barrier = float(path.name.split("barr")[1])
         set_info = load_flooding_set(sorted_run_files(path, "opes_short.colvar"), sorted_run_files(path, "p.log"), bias_col=4, acc_col=None, bias_shift=barrier, cdf_fit=False)
@@ -263,17 +474,22 @@ def run_opes_flooding() -> dict[str, object]:
         set_info["barrier_kj_mol"] = barrier
         set_specs.append(set_info)
         labels.append(path.name)
-        barriers.append(barrier)
 
     diagnostics = flooding_diagnostics(set_specs)
+    bootstrap_stats = bootstrap_flooding(set_specs, BOOTSTRAP_RESAMPLES, rng)
+    per_set_bootstrap = {entry["set"]: entry for entry in bootstrap_stats["per_set"]}
     output = {
         "temperature_K": TEMPERATURE_K,
         "timeunit_seconds": TIMEUNIT_SECONDS,
+        "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
         "sets": [
             {
                 "set": spec["label"],
                 "barrier_kj_mol": spec["barrier_kj_mol"],
                 "obs_rate": spec["obs_rate"],
+                "obs_rate_std": per_set_bootstrap[spec["label"]]["obs_rate_std"],
+                "obs_rate_ci95_low": per_set_bootstrap[spec["label"]]["obs_rate_ci95_low"],
+                "obs_rate_ci95_high": per_set_bootstrap[spec["label"]]["obs_rate_ci95_high"],
                 "ks_stat": spec["ks_stat"],
                 "p_value": spec["p_value"],
                 "ln_avg_exp_beta_v_gamma1": spec["avg_bias_gamma1"],
@@ -281,10 +497,12 @@ def run_opes_flooding() -> dict[str, object]:
             for spec in set_specs
         ],
         "flooding_fit": diagnostics,
+        "flooding_fit_bootstrap": bootstrap_stats,
     }
     with open(OUTPUT_ROOT / "opes_flooding_summary.json", "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
-    save_flooding_plot("OPES EATR-flooding", diagnostics, labels, "opes_flooding_diagnostics.png")
+    save_flooding_plot("OPES EATR-flooding", diagnostics, labels, "opes_flooding_diagnostics.png", bootstrap_stats=bootstrap_stats)
+    plot_opes_observed_rate_vs_barrier(set_specs, bootstrap_stats)
     return output
 
 
@@ -293,7 +511,7 @@ def run_wt_flooding() -> dict[str, object]:
     pace_dirs = sorted(wt_root.glob("eruns_pace*"), key=lambda path: float(path.name.split("pace")[1]))
     set_specs = []
     labels = []
-    pace_ps_values = []
+    rng = np.random.default_rng(BOOTSTRAP_SEED + 2)
     for pace_dir in pace_dirs:
         pace_steps = float(pace_dir.name.split("pace")[1])
         set_info = load_flooding_set(sorted_run_files(pace_dir, "metad.colvar"), sorted_run_files(pace_dir, "p.log"), bias_col=2, acc_col=4, bias_shift=0.0, cdf_fit=False)
@@ -302,22 +520,28 @@ def run_wt_flooding() -> dict[str, object]:
         set_info["pace_ps"] = pace_to_ps(pace_steps)
         set_specs.append(set_info)
         labels.append(pace_dir.name)
-        pace_ps_values.append(set_info["pace_ps"])
 
     diagnostics_all = flooding_diagnostics(set_specs)
     filtered_specs = [spec for spec in set_specs if float(spec["pace_ps"]) >= 100.0]
     filtered_labels = [spec["label"] for spec in filtered_specs]
     diagnostics_filtered = flooding_diagnostics(filtered_specs)
+    bootstrap_all = bootstrap_flooding(set_specs, BOOTSTRAP_RESAMPLES, rng)
+    bootstrap_filtered = bootstrap_flooding(filtered_specs, BOOTSTRAP_RESAMPLES, rng)
+    per_set_bootstrap = {entry["set"]: entry for entry in bootstrap_all["per_set"]}
 
     output = {
         "temperature_K": TEMPERATURE_K,
         "timeunit_seconds": TIMEUNIT_SECONDS,
+        "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
         "sets": [
             {
                 "set": spec["label"],
                 "pace_steps": spec["pace_steps"],
                 "pace_ps": spec["pace_ps"],
                 "obs_rate": spec["obs_rate"],
+                "obs_rate_std": per_set_bootstrap[spec["label"]]["obs_rate_std"],
+                "obs_rate_ci95_low": per_set_bootstrap[spec["label"]]["obs_rate_ci95_low"],
+                "obs_rate_ci95_high": per_set_bootstrap[spec["label"]]["obs_rate_ci95_high"],
                 "ks_stat": spec["ks_stat"],
                 "p_value": spec["p_value"],
                 "ln_avg_exp_beta_v_gamma1": spec["avg_bias_gamma1"],
@@ -326,26 +550,29 @@ def run_wt_flooding() -> dict[str, object]:
         ],
         "flooding_fit_all_sets": diagnostics_all,
         "flooding_fit_filtered_pace_ge_100ps": diagnostics_filtered,
+        "flooding_fit_all_sets_bootstrap": bootstrap_all,
+        "flooding_fit_filtered_pace_ge_100ps_bootstrap": bootstrap_filtered,
     }
     with open(OUTPUT_ROOT / "wt_flooding_summary.json", "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
-    save_flooding_plot("WT-MetaD EATR-flooding (all paces)", diagnostics_all, labels, "wt_flooding_all_paces.png")
-    save_flooding_plot("WT-MetaD EATR-flooding (pace ≥ 100 ps)", diagnostics_filtered, filtered_labels, "wt_flooding_filtered_paces.png")
-    plot_wt_observed_rate_vs_pace(set_specs, diagnostics_filtered)
+    save_flooding_plot("WT-MetaD EATR-flooding (all paces)", diagnostics_all, labels, "wt_flooding_all_paces.png", bootstrap_stats=bootstrap_all)
+    save_flooding_plot("WT-MetaD EATR-flooding (pace ≥ 100 ps)", diagnostics_filtered, filtered_labels, "wt_flooding_filtered_paces.png", bootstrap_stats=bootstrap_filtered)
+    plot_wt_observed_rate_vs_pace(set_specs, diagnostics_filtered, bootstrap_all)
     return output
 
 
-def plot_wt_observed_rate_vs_pace(set_specs: list[dict[str, object]], diagnostics_filtered: dict[str, object]) -> None:
+def plot_wt_observed_rate_vs_pace(set_specs: list[dict[str, object]], diagnostics_filtered: dict[str, object], bootstrap_stats: dict[str, object]) -> None:
     plt = pyplot()
     pace_ps = np.array([spec["pace_ps"] for spec in set_specs], dtype=float)
-    obs_ln_k = np.log(np.array([spec["obs_rate"] for spec in set_specs], dtype=float))
+    obs_rate = np.array([spec["obs_rate"] for spec in set_specs], dtype=float)
+    obs_rate_err = np.array([entry["obs_rate_std"] for entry in bootstrap_stats["per_set"]], dtype=float)
     fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
-    ax.plot(pace_ps, obs_ln_k, marker="o")
+    ax.errorbar(pace_ps, obs_rate, yerr=obs_rate_err, marker="o", capsize=3)
     ax.set_xscale("log")
     ax.set_xlabel("MetaD hill deposition pace (ps)")
-    ax.set_ylabel("Observed ln k_obs")
+    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (s$^{-1}$)")
     ax.set_title("WT-MetaD observed rate by pace")
-    ax.axhline(float(diagnostics_filtered["logk0_best"]), color="tab:red", linestyle="--", label="Filtered flooding ln k0*")
+    ax.axhline(float(np.exp(diagnostics_filtered["logk0_best"])), color="tab:red", linestyle="--", label="Filtered flooding k0*")
     ax.legend()
     fig.savefig(OUTPUT_ROOT / "wt_observed_rate_vs_pace.png", dpi=220)
     plt.close(fig)
@@ -362,6 +589,7 @@ def main() -> None:
         "notes": [
             "Protein G example trajectories use a 10 fs timestep in LAMMPS real units, so times were converted with 1e-15 s/fs.",
             "WT flooding analysis is reported for all pace sets and for a manuscript-style filtered subset with pace >= 100 ps.",
+            f"Bootstrap uncertainties use {BOOTSTRAP_RESAMPLES} trajectory-resampling replicas per analysis.",
         ],
         "wt_regular_summary": "wt_regular_eatr_summary.json",
         "opes_flooding_summary": "opes_flooding_summary.json",

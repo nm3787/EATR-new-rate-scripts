@@ -1,81 +1,307 @@
-# Rate Analysis Scripts
+# EATR Rate Analysis
 
-## Installation
+This repository provides command-line tools and Python modules for estimating unbiased rate constants from biased molecular dynamics simulations.
 
-This repository can now be installed as a Python package:
+It supports:
 
-```bash
-pip install .
-```
+- infrequent metadynamics / WT-MetaD style analyses
+- OPES flooding analyses
+- KTR and EATR estimators
+- EATR-flooding across multiple sets of simulations with different bias strengths
 
-For development work, including the test dependencies:
-
-```bash
-pip install -e ".[dev]"
-```
-
-The package installs these command-line tools:
+The packaged commands are:
 
 - `eatr-analysis`
 - `eatr-flooding-analysis`
 - `eatr-check-order`
 
-You can also run the main CLI with `python -m eatr_rates`.
+## Theory
 
-`rate_methods_library.py` is the Python library that contains all of the methods needed to perform all of the available analyses. It is imported by `rates_cmd.py` and `rates_eatr_opes.py`.
+Rare-event kinetics are often estimated from biased simulations by relating the observed transition times under bias to an underlying unbiased rate constant `k0`.
 
-## Metadynamics Analyses and OPES-Flooding
-`rates_cmd.py` is the Python script that can run the following analyses:
+This repository includes several related estimators:
 
-- Infrequent Metadynamics
-  - Using the mean residence time estimator as in \[Tiwary and Parinello, Phys. Rev. Lett. 2013, 111, 230602.\]  ("iMetaD MLE")
-  - Using least-squares fitting on the cumulative density function (CDF) as in \[Salvalaglio et al. J. Chem. Theory Comput. 2014, 10, 4, 1420-1425.\] ("iMetaD CDF")
-- OPES-Flooding
-  - As in \[Ray et al. J. Chem. Theory Comput. 2022, 18, 11, 6500-6509.\] (Use "iMetaD CDF" but also specify BARRIER)
-- Kramers' Time-dependent Rate (KTR)
-  - Using the maximum likelihood estimator as in \[Palacio-Rodriguez et al. J. Phys. Chem. Lett. 2022, 13, 32, 7490-7496.\] ("KTR MLE")
-  - Using least-squares fitting on the CDF as in \[Mazzaferro et al. J. Chem. Theory Comput. 2024, 20, 14, 5901-5912.\] ("KTR CDF")
-- Exponential Average Time-dependent Rate (EATR) as in \[Mazzaferro et al. J. Chem. Theory Comput. 2024, 20, 14, 5901-5912.\]
-  - Using the maximum likelihood estimator. ("EATR MLE")
-  - Using least-squares fitting on the CDF. ("EATR CDF")
+- `iMetaD`
+  Uses the standard infrequent metadynamics rescaling idea, where the observed time is accelerated by the bias.
+- `KTR`
+  Introduces a fitted efficiency parameter `γ` to account for the fact that the biased collective variable may not be an ideal reaction coordinate.
+- `EATR`
+  Uses an exponential average of the time-dependent bias to estimate both `k0` and `γ`. This is the main estimator introduced in Mazzaferro et al., JCTC 2024.
+- `EATR-flooding`
+  Extends the same idea to quasi-static or flooding-style biasing, especially OPES flooding, by comparing multiple sets of simulations performed with different bias strengths.
 
-`rates_cmd.py` should be run using a command similar to:
-`python rates_cmd.py -i run_*/*.colvar --temp 310 -MEb`
+The relevant papers included in [papers](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers) are:
 
-After installation, the equivalent packaged command is:
-`eatr-analysis -i run_*/*.colvar --temp 310 -MEb`
+- [52_2024_Mazzaferro_EATR_JCTC.pdf](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers/52_2024_Mazzaferro_EATR_JCTC.pdf)
+- [52_2024_Mazzaferro_EATR_JCTC_SI.pdf](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers/52_2024_Mazzaferro_EATR_JCTC_SI.pdf)
+- [eatr-flooding-plusSI-arxiv.pdf](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers/eatr-flooding-plusSI-arxiv.pdf)
 
-Use `python rates_cmd.py -h` to get a full list of useful parameters, but some facts that are important to know:
+Practical guidance:
 
-- You can only use one of TEMP, KT, and BETA to specify the temperature. If you use TEMP, you must ensure that ENERGYUNIT is correct. For example, if you specify TEMP, and you had used kcal/mol in PLUMED, you must set ENERGYUNIT to 4.184 kJ/mol.
-- In practice, an incorrect value for TIMEUNIT only puts the final value for the unbiased rate in the wrong units.
-- ACOL and MCOL are not necessary. The script will calculate the acceleration factor and max bias from the information in the COLVAR file, but this may be slightly less accurate, especially if you printed to the COLVAR file very infrequently.
-- If not all of your simulations transitioned, you should specify exactly one of LOGFILES, MAXLEN, MAXTIME, and NUMEVENTS. The analyses in this script uses the number of incomplete simulations to gain more information about the rate. If you specify LOGFILES, you should make sure that the Unix globs for the COLVAR files and the log files expand in the same order. This can be done using the `check_order.py` script.
-- Including the BOOTSTRAP flag activates bootstrapping as an error analysis. If your Python installation includes a version of SciPy with the bootstrap method, this script will use that and return a 95% confidence interval. If not, there is an internal implementation which returns the standard error.
-- Including the BAYESOPT flag sets the optimizer to the BayesianOptimization method from the bayes\_opt module. This does not come with Anaconda, so install it if you wish to use it. It takes much longer, but it is a global optimizer, which can sometimes help give reasonable results in KTR and EATR CDF.
-- Including the LOGTRICK flag causes the script to use the "log-sum-exp" trick to add together (or in this case, integrate) exponentials of very large numbers with good precision. I personally have not found an instance where it is useful, but if you need it, it is available.
-- You should NOT apply the KTR and EATR methods on simulations that were biased using OPES. You should use `rates_eatr_opes.py` instead.
+- Use `eatr-analysis` for time-dependent MetaD-style biasing.
+- Use `eatr-flooding-analysis` for OPES flooding or any workflow where you intentionally vary the amount of bias across multiple simulation sets.
+- You can also apply `eatr-flooding-analysis` to MetaD if you have multiple sets with different hill-deposition paces or other systematically varied biasing conditions.
 
+## Installation
 
-## EATR-OPES
-`rates_eatr_opes.py` is a Python script that can perform the EATR-OPES analysis on multiple sets of OPES simulations, where each set is given a different amount of bias.
+Install as a package:
 
-`rates_eatr_opes.py` should be run using a command similar to: `python rates_eatr_opes.py -i barrier5/*.colvar --barrier 5 -i barrier10/*.colvar --barrier 10 -i barrier15/*.colvar --barrier 15 --temp 310` or `python rates_eatr_opes.py -i barrier5/*.colvar -i barrier10/*.colvar -i barrier15/*.colvar --barriers 5 10 15 --temp 310`
+```bash
+pip install .
+```
 
-After installation, the equivalent packaged command is `eatr-flooding-analysis`.
+For development:
 
-Use `python rates_eatr_opes.py -h` to get a full list of useful parameters, but some facts that are important to know:
+```bash
+pip install -e ".[dev]"
+```
 
-- You need to specify INPUT once for every set of simulations you performed.
-- You also need to specify the value of the barrier parameter used in PLUMED for each set of simulations. You can either specify BARRIER multiple times, in the same order as you specify the sets of COLVAR files in INPUT, or you can specify BARRIERS with multiple arguments at once.
-- If you want to specify LOGFILES, that should also be specified for each set of simulations.
-- Bootstrapping in this script can only use an internal implementation, and thus will return the standard error. The samples are drawn by sampling with replacement the simulations within each set separately.
-- Because this script gives a single result, the result does not get saved to a file, but is instead only printed to the terminal.
+If you want to reproduce the example plots in this repository, you will also need `matplotlib`.
+
+## Command Overview
+
+### `eatr-analysis`
+
+This command analyzes one collection of trajectories from a single biasing protocol. It can compute:
+
+- `iMetaD MLE`
+- `iMetaD CDF`
+- `KTR MLE`
+- `KTR CDF`
+- `EATR MLE`
+- `EATR CDF`
+
+Typical usage:
+
+```bash
+eatr-analysis -i run_*/*.colvar --temp 310 -E
+```
+
+Important arguments:
+
+- `-i`, `--input`
+  Input COLVAR files.
+- `-o`, `--output`
+  Output JSON file. Default: `rates.json`.
+- `--temp`, `--kt`, `--beta`
+  Mutually exclusive ways to specify temperature.
+- `--timeunit`
+  Conversion factor from the time unit in the COLVAR file to seconds.
+- `--energyunit`
+  Conversion factor from the energy unit in the COLVAR file to kJ/mol.
+- `--tcol`, `--vcol`
+  Time and bias column indices.
+- `--acol`
+  Acceleration-factor column index if present.
+- `--mcol`
+  Max-bias column index if present.
+- `--logfiles`, `--maxlen`, `--maxtime`, `--numevents`
+  Ways to determine which runs actually transitioned. Use exactly one when not all trajectories transition.
+- `-m`, `-M`, `-k`, `-K`, `-e`, `-E`
+  Select the estimator(s) to run.
+- `-b`, `--bootstrap`
+  Enable bootstrap uncertainty analysis.
+- `-q`, `--quiet`
+  Suppress terminal printing and only write JSON output.
+
+Notes:
+
+- `KTR` and regular `EATR` are not intended for OPES flooding trajectories. Use `eatr-flooding-analysis` for those.
+- If your COLVAR file includes an acceleration column, passing `--acol` is preferable.
+- If your COLVAR files were written in femtoseconds and you want SI rates, use `--timeunit 1e-15`.
+
+### `eatr-flooding-analysis`
+
+This command analyzes multiple sets of trajectories collected under different bias strengths and estimates a single unbiased `k0` plus a single `γ`.
+
+Typical usage:
+
+```bash
+eatr-flooding-analysis \
+  -i barrier5/*.colvar --barrier 5 \
+  -i barrier10/*.colvar --barrier 10 \
+  -i barrier15/*.colvar --barrier 15 \
+  --temp 310
+```
+
+Equivalent form:
+
+```bash
+eatr-flooding-analysis \
+  -i barrier5/*.colvar \
+  -i barrier10/*.colvar \
+  -i barrier15/*.colvar \
+  --barriers 5 10 15 \
+  --temp 310
+```
+
+Important arguments:
+
+- `-i`, `--input`
+  Supply one group of trajectory files per simulation set.
+- `--barrier` or `--barriers`
+  Bias-strength labels for each set. For OPES, this should usually be the PLUMED `BARRIER` value.
+- `--timeunit`, `--energyunit`, `--temp`, `--kt`, `--beta`
+  Unit and temperature handling, as in `eatr-analysis`.
+- `--tcol`, `--vcol`, `--acol`
+  Time, bias, and optional acceleration columns.
+- `--logfiles`, `--maxlen`, `--maxtime`, `--numevents`
+  Set-wise transition detection.
+- `--cdf`
+  Fit the observed rate for each set using the CDF instead of the MLE.
+- `--timefirst`
+  Change how the exponential average is aggregated.
+- `--nooffset`
+  Disable automatic addition of the OPES barrier offset to the reported bias.
+- `--opesf`
+  Also report the standard OPES-flooding estimate alongside EATR-flooding.
+
+Notes:
+
+- For OPES data produced with `OPES_METAD ... BARRIER=...`, you usually want to pass the same `BARRIER` values here and leave `--nooffset` unset.
+- The method is also useful for MetaD if you have several sets with systematically varied deposition pace.
+
+### `eatr-check-order`
+
+This helper writes the expanded order of COLVAR files, optionally paired with log files, so you can verify shell glob expansion and pairing.
+
+Example:
+
+```bash
+eatr-check-order -i run_*/metad.colvar -l run_*/p.log -o order.dat
+```
+
+## Example Data
+
+The repository includes two example collections under [example-data/Ree_Data](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data):
+
+- [E_end_end_distance_opes](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_opes)
+  OPES flooding simulations with sets `eruns_barr5`, `7`, `9`, `11`, `13`
+- [E_end_end_distance_wt](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_wt)
+  WT-MetaD simulations with sets `eruns_pace1e2`, `1e3`, `1e4`, `2e4`, `5e4`, `1e5`, `5e5`, `1e6`
+
+For these protein G examples, the LAMMPS inputs use `real` units with a `10 fs` timestep, so the correct time conversion is:
+
+```bash
+--timeunit 1e-15
+```
+
+The temperature used in the examples is:
+
+```bash
+--temp 312
+```
+
+## Worked Commands
+
+### 1. OPES flooding example
+
+To analyze the OPES datasets with EATR-flooding:
+
+```bash
+eatr-flooding-analysis \
+  -i example-data/Ree_Data/E_end_end_distance_opes/eruns_barr5/run_*/opes_short.colvar --barrier 5 \
+  -i example-data/Ree_Data/E_end_end_distance_opes/eruns_barr7/run_*/opes_short.colvar --barrier 7 \
+  -i example-data/Ree_Data/E_end_end_distance_opes/eruns_barr9/run_*/opes_short.colvar --barrier 9 \
+  -i example-data/Ree_Data/E_end_end_distance_opes/eruns_barr11/run_*/opes_short.colvar --barrier 11 \
+  -i example-data/Ree_Data/E_end_end_distance_opes/eruns_barr13/run_*/opes_short.colvar --barrier 13 \
+  --logfiles example-data/Ree_Data/E_end_end_distance_opes/eruns_barr5/run_*/p.log \
+  --logfiles example-data/Ree_Data/E_end_end_distance_opes/eruns_barr7/run_*/p.log \
+  --logfiles example-data/Ree_Data/E_end_end_distance_opes/eruns_barr9/run_*/p.log \
+  --logfiles example-data/Ree_Data/E_end_end_distance_opes/eruns_barr11/run_*/p.log \
+  --logfiles example-data/Ree_Data/E_end_end_distance_opes/eruns_barr13/run_*/p.log \
+  --temp 312 \
+  --timeunit 1e-15 \
+  --tcol 0 \
+  --vcol 4 \
+  --opesf
+```
+
+Why these columns:
+
+- in `opes_short.colvar`, column 0 is time
+- column 4 is `opes.bias`
+
+### 2. Regular EATR on one WT-MetaD set
+
+For a single MetaD set such as `eruns_pace1e4`:
+
+```bash
+eatr-analysis \
+  -i example-data/Ree_Data/E_end_end_distance_wt/eruns_pace1e4/run_*/metad.colvar \
+  --logfiles example-data/Ree_Data/E_end_end_distance_wt/eruns_pace1e4/run_*/p.log \
+  --temp 312 \
+  --timeunit 1e-15 \
+  --tcol 0 \
+  --vcol 2 \
+  --acol 4 \
+  -eE \
+  -o example-data/test_results/pace1e4_rates.json
+```
+
+Why these columns:
+
+- in `metad.colvar`, column 0 is time
+- column 2 is `metad.bias`
+- column 4 is `metad.acc`
+
+### 3. Flooding-style analysis across WT-MetaD pace sets
+
+The flooding paper shows that EATR-flooding can also be applied to MetaD by comparing sets with different deposition pace. In that interpretation, the pace is the stepped biasing condition.
+
+The command-line interface currently expects each set to be labeled by a numeric `--barrier` value. For MetaD pace ladders, the physically meaningful stepped variable is pace, not an OPES barrier, so the most reproducible workflow in this repository is the scripted example runner:
+
+```bash
+.venv/bin/python scripts/run_example_analyses.py
+```
+
+That script writes:
+
+- [wt_regular_eatr_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_summary.json)
+- [wt_regular_eatr_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_vs_pace.png)
+- [wt_flooding_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_flooding_summary.json)
+- [wt_flooding_all_paces.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_flooding_all_paces.png)
+- [wt_flooding_filtered_paces.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_flooding_filtered_paces.png)
+- [wt_observed_rate_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_observed_rate_vs_pace.png)
+- [opes_flooding_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_summary.json)
+- [opes_flooding_diagnostics.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_diagnostics.png)
+
+## Example Results Produced In This Repository
+
+The example workflow currently reports:
+
+- OPES flooding fit:
+  - `gamma_best ≈ 0.4204`
+  - `logk0_best ≈ 20.9100`
+- WT flooding fit using all pace sets:
+  - `gamma_best ≈ 0.3641`
+  - `logk0_best ≈ 20.6906`
+- WT flooding fit using a filtered subset with pace `>= 100 ps`:
+  - `gamma_best ≈ 0.2689`
+  - `logk0_best ≈ 21.2035`
+
+One MetaD set, `eruns_pace1e3`, produced non-finite values in the regular EATR example workflow, and this is recorded explicitly in the example summary JSON.
+
+## Python Usage
+
+The library functions remain available from Python, and the packaged CLI modules now separate the numerical analysis from output formatting:
+
+- [eatr_rates/rates_cmd.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/eatr_rates/rates_cmd.py)
+- [eatr_rates/rates_eatr_opes.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/eatr_rates/rates_eatr_opes.py)
+- [rate_methods_library.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/rate_methods_library.py)
+
+If you want to build automated regression tests, the easiest target is the example runner in [scripts/run_example_analyses.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/scripts/run_example_analyses.py) and the JSON outputs it writes.
 
 ## Tests
 
-Run the unit test suite with:
+Run the unit tests with:
 
 ```bash
 pytest
+```
+
+Or with the standard library test runner:
+
+```bash
+python3 -m unittest discover -s tests -v
 ```

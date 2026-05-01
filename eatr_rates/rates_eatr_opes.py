@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import random
-import sys
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import optimize
@@ -10,6 +10,34 @@ from scipy.stats import ks_1samp
 
 import ks_censored as ksc
 import rate_methods_library as RM
+
+
+@dataclass
+class FloodingSetReport:
+    barrier: float
+    transitioned: int
+    total: int
+    avg_max_bias: float
+    tau_obs: float
+    k_obs: float
+    log_k_obs: float
+    ks_stat: float
+    p_value: float
+    ln_exp_beta_v: float
+
+
+@dataclass
+class FloodingAnalysisResult:
+    beta: float
+    logk0: float
+    gamma: float
+    opes_logk0: float | None
+    set_reports: list[FloodingSetReport] = field(default_factory=list)
+    bootstrap_logk0_std: float | None = None
+    bootstrap_gamma_std: float | None = None
+    bootstrap_opes_logk0_std: float | None = None
+    bootstrap_iterations: list[int] = field(default_factory=list)
+    messages: list[str] = field(default_factory=list)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,22 +76,42 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_beta(args: argparse.Namespace) -> float:
     if args.beta is not None:
-        beta = args.beta
-        if not args.quiet:
-            print(f"Using β = {beta}")
-        return beta
+        return args.beta
     if args.kt is not None:
-        beta = 1 / args.kt
-        if not args.quiet:
-            print(f"Using β = 1/kBT = {beta}")
-        return beta
-    beta = args.energyunit / (8.314462618e-3 * args.temp)
-    if not args.quiet:
-        print(f"Using β = 1/kBT = {beta}, with PLUMED energy unit equivalent to {args.energyunit} kJ/mol")
-    return beta
+        return 1 / args.kt
+    return args.energyunit / (8.314462618e-3 * args.temp)
 
 
-def analyze(args: argparse.Namespace) -> tuple[float, float, float | None]:
+def emit_messages(result: FloodingAnalysisResult, quiet: bool) -> None:
+    if quiet:
+        return
+    for message in result.messages:
+        print(message)
+
+
+def format_flooding_result(result: FloodingAnalysisResult) -> list[str]:
+    lines = [f"Using β = {result.beta}"]
+    for report in result.set_reports:
+        lines.append(f"Simulation Set: BARRIER = {result.beta * report.barrier} kBT")
+        lines.append(f"{report.transitioned} out of {report.total} simulations transitioned.")
+        lines.append(f"avg. max. bias: {report.avg_max_bias}")
+        lines.append(f"tau_obs: {report.tau_obs}, k_obs: {report.k_obs}, log k_obs: {report.log_k_obs}")
+        lines.append(f"KS stat: {report.ks_stat}; p = {report.p_value}")
+        lines.append(rf"ln<e^βV>: {report.ln_exp_beta_v}")
+        lines.append("")
+    lines.extend(str(iteration) for iteration in result.bootstrap_iterations)
+    if result.bootstrap_logk0_std is None:
+        suffix = f", OPES logk0: {result.opes_logk0} s^-1" if result.opes_logk0 is not None else ""
+        lines.append(f"\nk0: {np.exp(result.logk0)} s^-1, logk0: {result.logk0} s^-1, τ0: {np.exp(-result.logk0)} s, gamma: {result.gamma}{suffix}")
+    else:
+        suffix = ""
+        if result.opes_logk0 is not None and result.bootstrap_opes_logk0_std is not None:
+            suffix = f", OPES logk0: {result.opes_logk0} +/- σ {result.bootstrap_opes_logk0_std} s^-1"
+        lines.append(f"logk0: {result.logk0} +/- σ {result.bootstrap_logk0_std} s^-1, τ0: {np.exp(-result.logk0)} s, gamma: {result.gamma} +/- σ {result.bootstrap_gamma_std}{suffix}")
+    return lines
+
+
+def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
     beta = parse_beta(args)
     random.seed(args.seed)
 
@@ -81,22 +129,19 @@ def analyze(args: argparse.Namespace) -> tuple[float, float, float | None]:
     datas = [RM.get_data(colvars, args.tcol, args.vcol, acc_col=args.acol, time_scale_factor=args.timeunit) for colvars in args.input]
     events = [RM.get_event(datas[i], maxlen=args.maxlen, maxtime=args.maxtime, num_events=num_eventss[i], log_files=log_filess[i], quiet=True) for i in range(len(datas))]
 
-    def analyze_indices(indicess: list[list[int]], quiet: bool = False) -> tuple[float, float, float | None]:
+    def analyze_indices(indicess: list[list[int]]) -> tuple[float, float, float | None, list[FloodingSetReport]]:
         logk0_opesf = None
         opesf_times: list[float] = []
         opesf_event: list[bool] = []
         v_datas: dict[float, np.ndarray] = {}
         obs_rates: dict[float, float] = {}
+        set_reports: list[FloodingSetReport] = []
 
         for i, barrier in enumerate(barriers):
             barrier_add = 0 if args.nooffset else barrier
             data = [datas[i][j] for j in indicess[i]]
             event = np.array([events[i][j] for j in indicess[i]])
-            if not quiet:
-                print(f"Simulation Set: BARRIER = {beta * barrier} kBT")
-                print(f"{event.sum()} out of {len(data)} simulations transitioned.")
-                max_biases = [np.max(traj[:, 1] + barrier) for traj in data]
-                print(f"avg. max. bias: {np.mean(max_biases)}")
+            max_biases = [np.max(traj[:, 1] + barrier) for traj in data]
 
             colvar_row_counts = np.sort([len(traj[:, 0]) for traj in data])
             max_index = colvar_row_counts[-1] if args.avgover < 0 else colvar_row_counts[int(abs(args.avgover) * np.sum(event))]
@@ -124,12 +169,21 @@ def analyze(args: argparse.Namespace) -> tuple[float, float, float | None]:
                 obs_rates[barrier] = emp_rate
                 ks_stat, p = ksc.ks_1samp_censored(final_times, event, lambda t: np.exp(-emp_rate * t))
 
-            if not quiet:
-                print(f"tau_obs: {1 / obs_rate}, k_obs: {obs_rate}, log k_obs: {np.log(obs_rate)}")
-                print(f"KS stat: {ks_stat}; p = {p}")
-                avg = np.mean(np.nanmean(np.exp(beta * v_data), axis=0))
-                print(rf"ln<e^βV>: {np.log(avg)}")
-                print("")
+            avg = np.mean(np.nanmean(np.exp(beta * v_data), axis=0))
+            set_reports.append(
+                FloodingSetReport(
+                    barrier=barrier,
+                    transitioned=int(event.sum()),
+                    total=len(data),
+                    avg_max_bias=float(np.mean(max_biases)),
+                    tau_obs=float(1 / obs_rate),
+                    k_obs=float(obs_rate),
+                    log_k_obs=float(np.log(obs_rate)),
+                    ks_stat=float(ks_stat),
+                    p_value=float(p),
+                    ln_exp_beta_v=float(np.log(avg)),
+                )
+            )
 
         if args.opesf:
             logk0_opesf = np.log(RM.iMetaD_FitCDF_times(np.array(opesf_times), event=np.array(opesf_event)))
@@ -147,32 +201,46 @@ def analyze(args: argparse.Namespace) -> tuple[float, float, float | None]:
             avg = np.mean(np.nanmean(np.exp(beta * gamma_best * v_datas[barrier]), axis=axis_first))
             logk0s.append(np.log(obs_rates[barrier]) - np.log(avg))
         logk0_best = np.mean(logk0s)
-        return logk0_best, gamma_best, logk0_opesf
+        return logk0_best, gamma_best, logk0_opesf, set_reports
 
     if not args.bootstrap:
-        result = analyze_indices([list(range(len(data))) for data in datas], quiet=args.quiet)
-        logk0_best, gamma_best, logk0_opes = result
-        print(f"\nk0: {np.exp(logk0_best)} s^-1, logk0: {logk0_best} s^-1, τ0: {np.exp(-logk0_best)} s, gamma: {gamma_best}{', OPES logk0: ' + str(logk0_opes) + ' s^-1' if args.opesf else ''}")
+        logk0_best, gamma_best, logk0_opes, set_reports = analyze_indices([list(range(len(data))) for data in datas])
+        result = FloodingAnalysisResult(beta=beta, logk0=float(logk0_best), gamma=float(gamma_best), opes_logk0=None if logk0_opes is None else float(logk0_opes), set_reports=set_reports)
+        result.messages = format_flooding_result(result)
         return result
 
     sample_logk0 = []
     sample_gamma = []
     sample_opesf = []
+    set_reports: list[FloodingSetReport] = []
+    iterations: list[int] = []
     for i in range(args.numboots):
         indicess = [random.choices(list(range(len(data))), k=len(data)) for data in datas]
-        logk0, gamma, logk0_opesf = analyze_indices(indicess, quiet=True)
+        logk0, gamma, logk0_opesf, current_reports = analyze_indices(indicess)
         sample_logk0.append(logk0)
         sample_gamma.append(gamma)
         sample_opesf.append(logk0_opesf)
-        if not args.quiet:
-            print(i)
-    print(f"logk0: {np.mean(sample_logk0)} +/- σ {np.std(sample_logk0)} s^-1, τ0: {np.exp(-np.mean(sample_logk0))} s, gamma: {np.mean(sample_gamma)} +/- σ {np.std(sample_gamma)}{', OPES logk0: ' + str(np.mean(sample_opesf)) + ' +/- σ ' + str(np.std(sample_opesf)) + ' s^-1' if sample_opesf[0] is not None else ''}")
-    return float(np.mean(sample_logk0)), float(np.mean(sample_gamma)), None if sample_opesf[0] is None else float(np.mean(sample_opesf))
+        set_reports = current_reports
+        iterations.append(i)
+    result = FloodingAnalysisResult(
+        beta=beta,
+        logk0=float(np.mean(sample_logk0)),
+        gamma=float(np.mean(sample_gamma)),
+        opes_logk0=None if sample_opesf[0] is None else float(np.mean(sample_opesf)),
+        set_reports=set_reports,
+        bootstrap_logk0_std=float(np.std(sample_logk0)),
+        bootstrap_gamma_std=float(np.std(sample_gamma)),
+        bootstrap_opes_logk0_std=None if sample_opesf[0] is None else float(np.std(sample_opesf)),
+        bootstrap_iterations=iterations,
+    )
+    result.messages = format_flooding_result(result)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    analyze(args)
+    result = analyze(args)
+    emit_messages(result, args.quiet)
     return 0
 
 

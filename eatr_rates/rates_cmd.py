@@ -86,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kmax", type=np.float64, default=np.inf, help="the maximum value of k0 to be checked in CDF fitting (DEFAULT: inf)")
     parser.add_argument("--seed", type=int, default=None, help="the random number generator seed to use (for repeatability) (DEFAULT: None)")
     parser.add_argument("--cores", type=int, default=1, help="the number of cores for multiprocessing (DEFAULT: 1, no multiprocessing)")
+    parser.add_argument("--threads", type=int, default=1, help="alias for analysis parallelism when you want to request worker count explicitly (DEFAULT: 1)")
     event_find.add_argument(
         "--maxlen",
         type=int,
@@ -210,6 +211,9 @@ def emit_messages(run: AnalysisResult, quiet: bool) -> None:
 
 def analyze(args: argparse.Namespace) -> AnalysisResult:
     global boots_avail
+
+    if args.threads > 1 and args.cores == 1:
+        args.cores = args.threads
 
     beta = parse_beta(args)
     validate_args(args)

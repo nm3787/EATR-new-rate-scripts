@@ -17,7 +17,8 @@
     "Protein G example trajectories use a 10 fs timestep in LAMMPS real units, so times were converted with 1e-15 s/fs.",
     "Reported rate constants and observed rates in these example outputs are converted to us^-1.",
     "WT flooding analysis is reported for all pace sets and for a manuscript-style filtered subset with pace >= 100 ps.",
-    "Bootstrap uncertainties use 50 trajectory-resampling replicas per analysis."
+    "Bootstrap uncertainties use 50 trajectory-resampling replicas per analysis.",
+    "Optional multithreading is controlled with EATR_EXAMPLE_THREADS; current default is 4."
   ],
   "wt_regular_summary": "wt_regular_eatr_summary.json",
   "opes_flooding_summary": "opes_flooding_summary.json",

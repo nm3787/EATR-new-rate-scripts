@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import random
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -10,6 +11,13 @@ from scipy.stats import ks_1samp
 
 import ks_censored as ksc
 import rate_methods_library as RM
+
+
+def thread_map(func, values, threads: int):
+    if threads <= 1:
+        return [func(value) for value in values]
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        return list(executor.map(func, values))
 
 
 @dataclass
@@ -60,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gammamax", type=np.float64, default=1, help="the maximum value of gamma to be checked")
     parser.add_argument("--avgover", type=np.float64, default=-1, help="only include Vi(t) from the first transition time to when this fraction of transitioned simulations have transitioned in the set (-1 to include all data, 1 to only exclude Vi(t) before first transition)")
     parser.add_argument("--seed", type=int, default=None, help="the random number generator seed to use (for repeatability)")
+    parser.add_argument("--threads", type=int, default=1, help="the number of threads to use for independent set/bootstrap work (DEFAULT: 1)")
     event_find.add_argument("--maxlen", type=int, default=None, help="the maximum number of rows in each COLVAR file before the simulation runs out of time")
     event_find.add_argument("--maxtime", type=np.float64, default=None, help="the maximum time that can appear in each COLVAR file (try to make it slightly less for floating point reasons)")
     event_find.add_argument("--numevents", type=int, default=None, action="append", help="the number of simulations that transitioned for each simulation set (i.e. -i path/to/1/*.colvar --numevents 20 -i path/to/2/*.colvar --numevents 18 etc.)")
@@ -137,7 +146,8 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
         obs_rates: dict[float, float] = {}
         set_reports: list[FloodingSetReport] = []
 
-        for i, barrier in enumerate(barriers):
+        def analyze_set(index_and_barrier: tuple[int, float]):
+            i, barrier = index_and_barrier
             barrier_add = 0 if args.nooffset else barrier
             data = [datas[i][j] for j in indicess[i]]
             event = np.array([events[i][j] for j in indicess[i]])
@@ -149,41 +159,47 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
             v_data = np.full((len(data), max_index - min_index), np.nan)
             for traj_index, traj in enumerate(data):
                 v_data[traj_index, : (min(len(traj), max_index) - min_index)] = traj[min_index:max_index, 1] + barrier_add
-            v_datas[barrier] = v_data
-
             final_times = np.array([traj[-1, 0] for traj in data])
+            opesf_times_local: list[float] = []
+            opesf_event_local: list[bool] = []
             if args.opesf:
                 rescaled_times = RM.iMetaD_rescaled_times(data, beta, bias_shift=barrier_add)
-                opesf_times.extend(list(rescaled_times))
-                opesf_event.extend(list(event))
+                opesf_times_local.extend(list(rescaled_times))
+                opesf_event_local.extend(list(event))
 
             ecdfxs = np.sort(final_times)
             ecdfys = np.linspace(1 / len(event), 1, len(event))
             emp_rate = event.sum() / final_times.sum()
             if args.cdf:
                 obs_rate = optimize.curve_fit(lambda t, k: 1 - np.exp(-k * t), ecdfxs[: event.sum()], ecdfys[: event.sum()], p0=emp_rate)[0][0]
-                obs_rates[barrier] = obs_rate
                 ks_stat, p = ks_1samp(ecdfxs[: event.sum()], lambda t: 1 - np.exp(-obs_rate * t))
             else:
                 obs_rate = emp_rate
-                obs_rates[barrier] = emp_rate
                 ks_stat, p = ksc.ks_1samp_censored(final_times, event, lambda t: np.exp(-emp_rate * t))
 
             avg = np.mean(np.nanmean(np.exp(beta * v_data), axis=0))
-            set_reports.append(
-                FloodingSetReport(
-                    barrier=barrier,
-                    transitioned=int(event.sum()),
-                    total=len(data),
-                    avg_max_bias=float(np.mean(max_biases)),
-                    tau_obs=float(1 / obs_rate),
-                    k_obs=float(obs_rate),
-                    log_k_obs=float(np.log(obs_rate)),
-                    ks_stat=float(ks_stat),
-                    p_value=float(p),
-                    ln_exp_beta_v=float(np.log(avg)),
-                )
+            report = FloodingSetReport(
+                barrier=barrier,
+                transitioned=int(event.sum()),
+                total=len(data),
+                avg_max_bias=float(np.mean(max_biases)),
+                tau_obs=float(1 / obs_rate),
+                k_obs=float(obs_rate),
+                log_k_obs=float(np.log(obs_rate)),
+                ks_stat=float(ks_stat),
+                p_value=float(p),
+                ln_exp_beta_v=float(np.log(avg)),
             )
+            return barrier, v_data, float(obs_rate), report, opesf_times_local, opesf_event_local
+
+        set_results = thread_map(analyze_set, list(enumerate(barriers)), args.threads)
+        for barrier, v_data, obs_rate, report, opesf_times_local, opesf_event_local in set_results:
+            v_datas[barrier] = v_data
+            obs_rates[barrier] = obs_rate
+            set_reports.append(report)
+            if args.opesf:
+                opesf_times.extend(opesf_times_local)
+                opesf_event.extend(opesf_event_local)
 
         if args.opesf:
             logk0_opesf = np.log(RM.iMetaD_FitCDF_times(np.array(opesf_times), event=np.array(opesf_event)))
@@ -214,9 +230,13 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
     sample_opesf = []
     set_reports: list[FloodingSetReport] = []
     iterations: list[int] = []
-    for i in range(args.numboots):
-        indicess = [random.choices(list(range(len(data))), k=len(data)) for data in datas]
-        logk0, gamma, logk0_opesf, current_reports = analyze_indices(indicess)
+    def bootstrap_worker(i: int):
+        rng = random.Random(None if args.seed is None else args.seed + i + 1)
+        indicess = [rng.choices(list(range(len(data))), k=len(data)) for data in datas]
+        return i, analyze_indices(indicess)
+
+    bootstrap_results = thread_map(bootstrap_worker, list(range(args.numboots)), args.threads)
+    for i, (logk0, gamma, logk0_opesf, current_reports) in bootstrap_results:
         sample_logk0.append(logk0)
         sample_gamma.append(gamma)
         sample_opesf.append(logk0_opesf)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +24,7 @@ TEMPERATURE_K = 312.0
 BOOTSTRAP_RESAMPLES = 50
 BOOTSTRAP_SEED = 20260501
 LN_US_PER_S = np.log(MICROSECONDS_PER_SECOND)
+DEFAULT_THREADS = max(1, int(os.environ.get("EATR_THREADS", "1")))
 
 
 def ensure_output_root() -> None:
@@ -65,6 +67,13 @@ def ln_rate_s_to_ln_us(ln_rate_s: float) -> float:
 def percentile_interval(samples: np.ndarray, level: float = 95.0) -> tuple[float, float]:
     alpha = (100.0 - level) / 2.0
     return float(np.percentile(samples, alpha)), float(np.percentile(samples, 100.0 - alpha))
+
+
+def thread_map(func, values, threads: int):
+    if threads <= 1:
+        return [func(value) for value in values]
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        return list(executor.map(func, values))
 
 
 def bootstrap_index_sets(size: int, n_resamples: int, rng: np.random.Generator) -> np.ndarray:
@@ -138,25 +147,25 @@ def eatr_mle_from_prepared(prepared: dict[str, object], beta: float, gamma_bound
     }
 
 
-def bootstrap_regular_eatr(prepared: dict[str, object], beta: float, n_resamples: int, rng: np.random.Generator) -> dict[str, float]:
+def bootstrap_regular_eatr(prepared: dict[str, object], beta: float, n_resamples: int, rng: np.random.Generator, threads: int = DEFAULT_THREADS) -> dict[str, float]:
     index_sets = bootstrap_index_sets(len(np.asarray(prepared["event"])), n_resamples, rng)
-    sample_ln_k = []
-    sample_gamma = []
-    for indices in index_sets:
+
+    def worker(indices: np.ndarray) -> tuple[float, float]:
         resampled = resample_prepared_data(prepared, indices)
         fit = eatr_mle_from_prepared(resampled, beta)
-        sample_ln_k.append(float(np.log(fit["k0"])))
-        sample_gamma.append(float(fit["gamma"]))
-    ln_k_samples = np.array(sample_ln_k, dtype=float)
-    gamma_samples = np.array(sample_gamma, dtype=float)
-    ln_k_ci = percentile_interval(ln_k_samples)
-    gamma_ci = percentile_interval(gamma_samples)
+        return float(np.log(fit["k0"])), float(fit["gamma"])
+
+    results = thread_map(worker, index_sets, threads)
+    sample_ln_k = np.array([result[0] for result in results], dtype=float)
+    sample_gamma = np.array([result[1] for result in results], dtype=float)
+    ln_k_ci = percentile_interval(sample_ln_k)
+    gamma_ci = percentile_interval(sample_gamma)
     return {
         "n_resamples": int(n_resamples),
-        "ln_k_std": float(np.std(ln_k_samples)),
+        "ln_k_std": float(np.std(sample_ln_k)),
         "ln_k_ci95_low": ln_k_ci[0],
         "ln_k_ci95_high": ln_k_ci[1],
-        "gamma_std": float(np.std(gamma_samples)),
+        "gamma_std": float(np.std(sample_gamma)),
         "gamma_ci95_low": gamma_ci[0],
         "gamma_ci95_high": gamma_ci[1],
     }
@@ -180,7 +189,7 @@ def run_regular_wt_eatr() -> dict[str, object]:
         log_average_exp_mle = mle_fit["log_average_exp"]
         final_time_indices = np.asarray(prepared["final_time_indices"], dtype=int)
         mle_ks_stat, mle_p_value = ks_censored_ks(final_time_indices[event], np.exp(np.log(mle_rate)), log_average_exp_mle)
-        mle_bootstrap = bootstrap_regular_eatr(prepared, beta, BOOTSTRAP_RESAMPLES, rng)
+        mle_bootstrap = bootstrap_regular_eatr(prepared, beta, BOOTSTRAP_RESAMPLES, rng, threads=DEFAULT_THREADS)
 
         cdf_ln_k = math.nan
         cdf_gamma = math.nan
@@ -291,6 +300,7 @@ def load_flooding_set(colvar_files: list[str], log_files: list[str], bias_col: i
         "data": data,
         "event": event,
         "obs_rate": obs_rate,
+        "log_obs_rate": float(np.log(obs_rate)),
         "ks_stat": float(ks_stat),
         "p_value": float(p_value),
         "v_data": prepared["v_data"],
@@ -322,7 +332,7 @@ def flooding_ln_k0_by_set(set_specs: list[dict[str, object]], gamma: float, beta
     ln_k0s = []
     for spec in set_specs:
         ln_avg = flooding_log_average(spec, gamma, beta)
-        ln_k0s.append(float(np.log(spec["obs_rate"]) - ln_avg))
+        ln_k0s.append(float(spec["log_obs_rate"] - ln_avg))
     return ln_k0s
 
 
@@ -340,18 +350,17 @@ def flooding_best_fit(set_specs: list[dict[str, object]], axis_first: int = 0) -
     }
 
 
-def flooding_diagnostics(set_specs: list[dict[str, object]], axis_first: int = 0) -> dict[str, object]:
+def flooding_diagnostics(set_specs: list[dict[str, object]], axis_first: int = 0, threads: int = DEFAULT_THREADS) -> dict[str, object]:
     beta = beta_value()
     gamma_grid = np.linspace(0.0, 1.0, 401)
-    per_set_ln_k0: list[list[float]] = []
-    mean_ln_k0 = []
-    var_ln_k0 = []
-
-    for gamma in gamma_grid:
+    def gamma_worker(gamma: float) -> tuple[list[float], float, float]:
         ln_k0s = flooding_ln_k0_by_set(set_specs, float(gamma), beta, axis_first=axis_first)
-        per_set_ln_k0.append(ln_k0s)
-        mean_ln_k0.append(float(np.mean(ln_k0s)))
-        var_ln_k0.append(float(np.var(ln_k0s)))
+        return ln_k0s, float(np.mean(ln_k0s)), float(np.var(ln_k0s))
+
+    gamma_results = thread_map(gamma_worker, gamma_grid, threads)
+    per_set_ln_k0 = [result[0] for result in gamma_results]
+    mean_ln_k0 = [result[1] for result in gamma_results]
+    var_ln_k0 = [result[2] for result in gamma_results]
 
     best_fit = flooding_best_fit(set_specs, axis_first=axis_first)
 
@@ -366,32 +375,34 @@ def flooding_diagnostics(set_specs: list[dict[str, object]], axis_first: int = 0
     }
 
 
-def bootstrap_flooding(set_specs: list[dict[str, object]], n_resamples: int, rng: np.random.Generator) -> dict[str, object]:
-    gamma_samples = []
-    logk0_samples = []
+def bootstrap_flooding(set_specs: list[dict[str, object]], n_resamples: int, rng: np.random.Generator, threads: int = DEFAULT_THREADS) -> dict[str, object]:
     obs_rate_samples = np.full((n_resamples, len(set_specs)), np.nan)
     index_sets = [bootstrap_index_sets(len(np.asarray(spec["event"])), n_resamples, rng) for spec in set_specs]
 
-    for bootstrap_index in range(n_resamples):
+    def bootstrap_worker(bootstrap_index: int) -> tuple[float, float, np.ndarray]:
         resampled_specs = []
+        obs_rates = np.full(len(set_specs), np.nan)
         for set_index, spec in enumerate(set_specs):
             indices = index_sets[set_index][bootstrap_index]
             event = np.asarray(spec["event"], dtype=bool)[indices]
             final_times = np.asarray(spec["final_times"], dtype=float)[indices]
             obs_rate = float(event.sum() / final_times.sum())
-            obs_rate_samples[bootstrap_index, set_index] = obs_rate
+            obs_rates[set_index] = obs_rate
             resampled_specs.append(
                 {
                     "obs_rate": obs_rate,
+                    "log_obs_rate": float(np.log(obs_rate)),
                     "v_data": np.asarray(spec["v_data"], dtype=float)[indices],
                 }
             )
         best_fit = flooding_best_fit(resampled_specs)
-        gamma_samples.append(float(best_fit["gamma_best"]))
-        logk0_samples.append(float(best_fit["logk0_best"]))
+        return float(best_fit["gamma_best"]), float(best_fit["logk0_best"]), obs_rates
 
-    gamma_samples_array = np.array(gamma_samples, dtype=float)
-    logk0_samples_array = np.array(logk0_samples, dtype=float)
+    bootstrap_results = thread_map(bootstrap_worker, range(n_resamples), threads)
+    gamma_samples_array = np.array([result[0] for result in bootstrap_results], dtype=float)
+    logk0_samples_array = np.array([result[1] for result in bootstrap_results], dtype=float)
+    for bootstrap_index, result in enumerate(bootstrap_results):
+        obs_rate_samples[bootstrap_index, :] = result[2]
     gamma_ci = percentile_interval(gamma_samples_array)
     logk0_ci = percentile_interval(logk0_samples_array)
     per_set = []
@@ -549,8 +560,8 @@ def run_opes_flooding() -> dict[str, object]:
         set_specs.append(set_info)
         labels.append(path.name)
 
-    diagnostics = flooding_diagnostics(set_specs)
-    bootstrap_stats = bootstrap_flooding(set_specs, BOOTSTRAP_RESAMPLES, rng)
+    diagnostics = flooding_diagnostics(set_specs, threads=DEFAULT_THREADS)
+    bootstrap_stats = bootstrap_flooding(set_specs, BOOTSTRAP_RESAMPLES, rng, threads=DEFAULT_THREADS)
     per_set_bootstrap = {entry["set"]: entry for entry in bootstrap_stats["per_set"]}
     output = {
         "temperature_K": TEMPERATURE_K,
@@ -608,12 +619,12 @@ def run_wt_flooding() -> dict[str, object]:
         set_specs.append(set_info)
         labels.append(pace_dir.name)
 
-    diagnostics_all = flooding_diagnostics(set_specs)
+    diagnostics_all = flooding_diagnostics(set_specs, threads=DEFAULT_THREADS)
     filtered_specs = [spec for spec in set_specs if float(spec["pace_ps"]) >= 100.0]
     filtered_labels = [spec["label"] for spec in filtered_specs]
-    diagnostics_filtered = flooding_diagnostics(filtered_specs)
-    bootstrap_all = bootstrap_flooding(set_specs, BOOTSTRAP_RESAMPLES, rng)
-    bootstrap_filtered = bootstrap_flooding(filtered_specs, BOOTSTRAP_RESAMPLES, rng)
+    diagnostics_filtered = flooding_diagnostics(filtered_specs, threads=DEFAULT_THREADS)
+    bootstrap_all = bootstrap_flooding(set_specs, BOOTSTRAP_RESAMPLES, rng, threads=DEFAULT_THREADS)
+    bootstrap_filtered = bootstrap_flooding(filtered_specs, BOOTSTRAP_RESAMPLES, rng, threads=DEFAULT_THREADS)
     per_set_bootstrap = {entry["set"]: entry for entry in bootstrap_all["per_set"]}
 
     output = {
@@ -712,6 +723,7 @@ def main() -> None:
             "Reported rate constants and observed rates in these example outputs are converted to us^-1.",
             "WT flooding analysis is reported for all pace sets and for a manuscript-style filtered subset with pace >= 100 ps.",
             f"Bootstrap uncertainties use {BOOTSTRAP_RESAMPLES} trajectory-resampling replicas per analysis.",
+            f"Optional multithreading is controlled with EATR_THREADS; current default is {DEFAULT_THREADS}.",
         ],
         "wt_regular_summary": "wt_regular_eatr_summary.json",
         "opes_flooding_summary": "opes_flooding_summary.json",

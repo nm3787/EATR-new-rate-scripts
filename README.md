@@ -97,6 +97,8 @@ Important arguments:
   Max-bias column index if present.
 - `--logfiles`, `--maxlen`, `--maxtime`, `--numevents`
   Ways to determine which runs actually transitioned. Use exactly one when not all trajectories transition.
+- `--cores`, `--threads`
+  Analysis parallelism controls. `--threads` is a convenient worker-count alias; `--cores` controls the lower-level estimator multiprocessing.
 - `-m`, `-M`, `-k`, `-K`, `-e`, `-E`
   Select the estimator(s) to run.
 - `-b`, `--bootstrap`
@@ -145,6 +147,8 @@ Important arguments:
   Unit and temperature handling, as in `eatr-analysis`.
 - `--tcol`, `--vcol`, `--acol`
   Time, bias, and optional acceleration columns.
+- `--threads`
+  Run independent set/bootstrap work in parallel.
 - `--logfiles`, `--maxlen`, `--maxtime`, `--numevents`
   Set-wise transition detection.
 - `--cdf`
@@ -255,7 +259,15 @@ The command-line interface currently expects each set to be labeled by a numeric
 .venv/bin/python scripts/run_example_analyses.py
 ```
 
-That script writes bootstrap-backed summaries and plots with reported rates converted to `us^-1` and pace units in `ps`. The current example workflow uses `50` trajectory-resampling bootstrap replicas per analysis. The generated files are:
+That script writes bootstrap-backed summaries and plots with reported rates converted to `us^-1` and pace units in `ps`. The current example workflow uses `50` trajectory-resampling bootstrap replicas per analysis.
+
+If you want to speed up the example workflow, you can enable threaded execution over independent gamma-grid and bootstrap tasks:
+
+```bash
+EATR_THREADS=4 .venv/bin/python scripts/run_example_analyses.py
+```
+
+The generated files are:
 
 - [wt_regular_eatr_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_summary.json)
 - [wt_regular_eatr_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_vs_pace.png)

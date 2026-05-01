@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import random
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     temperature = parser.add_mutually_exclusive_group()
     event_find = parser.add_mutually_exclusive_group()
     parser.add_argument("-i", "--input", type=str, action="append", help="the files for a simulation set (call once for each set, i.e. -i path/to/1/*.colvar -i path/to/2/*.colvar etc.)", nargs="+")
+    parser.add_argument("-o", "--output", type=str, default="flooding_rates.json", help="the name of the output JSON file (DEFAULT: flooding_rates.json)")
     barr.add_argument("--barrier", type=np.float64, action="append", help="the BARRIER parameter in PLUMED for the simulation set (i.e. -i path/to/1/*.colvar --barrier 1 -i path/to/2/*.colvar --barrier 2 etc.)")
     barr.add_argument("--barriers", type=np.float64, help="the BARRIER parameter in PLUMED for each simulation set, defined all at once (i.e. -i path/to/1/*.colvar -i path/to/2/*.colvar etc. --barriers 1 2 etc.)", nargs="+")
     temperature.add_argument("--temp", type=np.float64, default=298, help="the temperature (in Kelvin) that the simulation was run at (make sure that ENERGYUNIT is correct)")
@@ -96,6 +98,51 @@ def emit_messages(result: FloodingAnalysisResult, quiet: bool) -> None:
         return
     for message in result.messages:
         print(message)
+
+
+def json_ready(value: object) -> object:
+    if isinstance(value, dict):
+        return {key: json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_ready(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return json_ready(value.tolist())
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def write_results(path: str, payload: dict[str, object]) -> None:
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(json_ready(payload), handle)
+
+
+def result_payload(result: FloodingAnalysisResult) -> dict[str, object]:
+    return {
+        "beta": result.beta,
+        "logk0": result.logk0,
+        "gamma": result.gamma,
+        "opes_logk0": result.opes_logk0,
+        "bootstrap_logk0_std": result.bootstrap_logk0_std,
+        "bootstrap_gamma_std": result.bootstrap_gamma_std,
+        "bootstrap_opes_logk0_std": result.bootstrap_opes_logk0_std,
+        "bootstrap_iterations": result.bootstrap_iterations,
+        "set_reports": [
+            {
+                "barrier": report.barrier,
+                "transitioned": report.transitioned,
+                "total": report.total,
+                "avg_max_bias": report.avg_max_bias,
+                "tau_obs": report.tau_obs,
+                "k_obs": report.k_obs,
+                "log_k_obs": report.log_k_obs,
+                "ks_stat": report.ks_stat,
+                "p_value": report.p_value,
+                "ln_exp_beta_v": report.ln_exp_beta_v,
+            }
+            for report in result.set_reports
+        ],
+    }
 
 
 def format_flooding_result(result: FloodingAnalysisResult) -> list[str]:
@@ -261,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     result = analyze(args)
     emit_messages(result, args.quiet)
+    write_results(args.output, result_payload(result))
     return 0
 
 

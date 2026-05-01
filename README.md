@@ -14,6 +14,7 @@ The packaged commands are:
 - `eatr-analysis`
 - `eatr-flooding-analysis`
 - `eatr-check-order`
+- `eatr-analysis-plot`
 
 ## Theory
 
@@ -175,6 +176,32 @@ Example:
 eatr-check-order -i run_*/metad.colvar -l run_*/p.log -o order.dat
 ```
 
+### `eatr-analysis-plot`
+
+This plotting helper consumes JSON outputs written by `eatr-analysis` or `eatr-flooding-analysis` and generates figures without rerunning the numerical analysis.
+
+Regular-series example:
+
+```bash
+eatr-analysis-plot regular-series \
+  -i pace_1ps.json pace_10ps.json pace_100ps.json \
+  --xvalues 1 10 100 \
+  --xlabel "MetaD hill deposition pace (ps)" \
+  --method eatr-comparison \
+  -o wt_regular_series.png
+```
+
+Flooding example:
+
+```bash
+eatr-analysis-plot flooding \
+  -i opes_flooding.json \
+  --condition-label "OPES barrier" \
+  --condition-unit "kJ mol^-1" \
+  --title-prefix "OPES flooding" \
+  -o opes_figures
+```
+
 ## Example Data
 
 The repository includes two example collections under [example-data/Ree_Data](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data):
@@ -253,7 +280,16 @@ Why these columns:
 
 The flooding paper shows that EATR-flooding can also be applied to MetaD by comparing sets with different deposition pace. In that interpretation, the pace is the stepped biasing condition.
 
-The command-line interface currently expects each set to be labeled by a numeric `--barrier` value. For MetaD pace ladders, the physically meaningful stepped variable is pace, not an OPES barrier, so the most reproducible workflow in this repository is the scripted example runner:
+The repository now includes a CLI-only example workflow that runs the packaged commands and then plots from their JSON outputs:
+
+```bash
+bash scripts/run_example_cli.sh
+```
+
+That script writes JSON and figure outputs under [example-data/test_results_cli](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results_cli).
+For the WT pace ladder it uses `EATR MLE` to keep the shell workflow practical, and for the flooding workflows it enables bootstrap uncertainty analysis. By default it uses `50` bootstrap replicas where bootstrap is enabled; for a faster smoke run you can lower that with `EATR_NUMBOOTS`, for example `EATR_NUMBOOTS=5 bash scripts/run_example_cli.sh`.
+
+For comparison, the repository also includes the Python example runner:
 
 ```bash
 .venv/bin/python scripts/run_example_analyses.py

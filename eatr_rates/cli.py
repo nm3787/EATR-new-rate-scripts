@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from eatr_rates.check_order import main as check_order_main
+from eatr_rates.plot_results import main as plot_results_main
 from eatr_rates.rates_cmd import main as rates_cmd_main
 from eatr_rates.rates_eatr_opes import main as rates_eatr_opes_main
 
@@ -17,3 +18,7 @@ def rates_eatr_opes() -> int:
 
 def check_order() -> int:
     return check_order_main()
+
+
+def plot_results() -> int:
+    return plot_results_main()

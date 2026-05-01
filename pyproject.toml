@@ -14,6 +14,7 @@ authors = [
 dependencies = [
   "numpy>=1.22",
   "scipy>=1.9",
+  "matplotlib>=3.7",
 ]
 keywords = ["metadynamics", "opes", "molecular-dynamics", "rate-analysis", "chemistry"]
 classifiers = [
@@ -40,6 +41,7 @@ bayesopt = [
 eatr-analysis = "eatr_rates.cli:rates_cmd"
 eatr-flooding-analysis = "eatr_rates.cli:rates_eatr_opes"
 eatr-check-order = "eatr_rates.cli:check_order"
+eatr-analysis-plot = "eatr_rates.cli:plot_results"
 
 [tool.setuptools]
 py-modules = ["rate_methods_library", "ks_censored", "rates_cmd", "rates_eatr_opes", "check_order"]

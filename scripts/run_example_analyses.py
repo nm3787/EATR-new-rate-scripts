@@ -17,9 +17,12 @@ MPL_CONFIG_DIR = ROOT / ".matplotlib-cache"
 XDG_CACHE_DIR = ROOT / ".cache"
 
 TIMEUNIT_SECONDS = 1e-15
+MICROSECONDS_PER_SECOND = 1e6
+TIMEUNIT_MICROSECONDS = TIMEUNIT_SECONDS * MICROSECONDS_PER_SECOND
 TEMPERATURE_K = 312.0
 BOOTSTRAP_RESAMPLES = 50
 BOOTSTRAP_SEED = 20260501
+LN_US_PER_S = np.log(MICROSECONDS_PER_SECOND)
 
 
 def ensure_output_root() -> None:
@@ -45,6 +48,18 @@ def sorted_run_files(base_dir: Path, filename: str) -> list[str]:
 
 def pace_to_ps(pace_steps: float) -> float:
     return pace_steps * 10.0 * 1e-3
+
+
+def rate_s_to_us(rate_s: float) -> float:
+    return rate_s / MICROSECONDS_PER_SECOND
+
+
+def rate_std_s_to_us(rate_std_s: float) -> float:
+    return rate_std_s / MICROSECONDS_PER_SECOND
+
+
+def ln_rate_s_to_ln_us(ln_rate_s: float) -> float:
+    return ln_rate_s - LN_US_PER_S
 
 
 def percentile_interval(samples: np.ndarray, level: float = 95.0) -> tuple[float, float]:
@@ -188,16 +203,16 @@ def run_regular_wt_eatr() -> dict[str, object]:
                 "pace_ps": pace_to_ps(pace_steps),
                 "transitioned": int(event.sum()),
                 "total": len(event),
-                "eatr_mle_ln_k": float(np.log(mle_rate)),
+                "eatr_mle_ln_k": float(ln_rate_s_to_ln_us(np.log(mle_rate))),
                 "eatr_mle_gamma": float(mle_gamma),
-                "eatr_cdf_ln_k": cdf_ln_k,
+                "eatr_cdf_ln_k": float(ln_rate_s_to_ln_us(cdf_ln_k)) if np.isfinite(cdf_ln_k) else cdf_ln_k,
                 "eatr_cdf_gamma": cdf_gamma,
                 "eatr_mle_ks_stat": float(mle_ks_stat),
                 "eatr_mle_p_value": float(mle_p_value),
                 "eatr_mle_bootstrap_n": int(mle_bootstrap["n_resamples"]),
                 "eatr_mle_ln_k_std": float(mle_bootstrap["ln_k_std"]),
-                "eatr_mle_ln_k_ci95_low": float(mle_bootstrap["ln_k_ci95_low"]),
-                "eatr_mle_ln_k_ci95_high": float(mle_bootstrap["ln_k_ci95_high"]),
+                "eatr_mle_ln_k_ci95_low": float(ln_rate_s_to_ln_us(mle_bootstrap["ln_k_ci95_low"])),
+                "eatr_mle_ln_k_ci95_high": float(ln_rate_s_to_ln_us(mle_bootstrap["ln_k_ci95_high"])),
                 "eatr_mle_gamma_std": float(mle_bootstrap["gamma_std"]),
                 "eatr_mle_gamma_ci95_low": float(mle_bootstrap["gamma_ci95_low"]),
                 "eatr_mle_gamma_ci95_high": float(mle_bootstrap["gamma_ci95_high"]),
@@ -210,6 +225,8 @@ def run_regular_wt_eatr() -> dict[str, object]:
     output = {
         "temperature_K": TEMPERATURE_K,
         "timeunit_seconds": TIMEUNIT_SECONDS,
+        "timeunit_microseconds": TIMEUNIT_MICROSECONDS,
+        "rate_unit": "us^-1",
         "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
         "sets": summaries,
     }
@@ -234,7 +251,7 @@ def plot_regular_eatr(summaries: list[dict[str, float | str]]) -> None:
     axes[0].plot(pace_ps, ln_k_cdf, marker="s", label="EATR CDF")
     axes[0].set_xscale("log")
     axes[0].set_xlabel("MetaD hill deposition pace (ps)")
-    axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
+    axes[0].set_ylabel(r"Estimated ln($k_0$ / us$^{-1}$)")
     axes[0].set_title("WT-MetaD Regular EATR")
     axes[0].legend()
 
@@ -281,6 +298,7 @@ def load_flooding_set(colvar_files: list[str], log_files: list[str], bias_col: i
         "final_times": prepared["final_times"],
         "final_time_indices": prepared["final_time_indices"],
         "avg_bias_gamma1": float(np.log(np.mean(np.nanmean(np.exp(beta_value() * np.asarray(prepared["v_data"], dtype=float)), axis=0)))),
+        "avg_acceleration_factor_gamma1": float(np.exp(np.log(np.mean(np.nanmean(np.exp(beta_value() * np.asarray(prepared["v_data"], dtype=float)), axis=0))))),
     }
 
 
@@ -406,14 +424,14 @@ def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: l
     mean_ln_k0 = np.array(diagnostics["mean_ln_k0"], dtype=float)
     var_ln_k0 = np.array(diagnostics["var_ln_k0"], dtype=float)
     gamma_best = float(diagnostics["gamma_best"])
-    logk0_best = float(diagnostics["logk0_best"])
+    logk0_best = float(ln_rate_s_to_ln_us(diagnostics["logk0_best"]))
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), constrained_layout=True)
 
     for idx, label in enumerate(set_labels):
         axes[0].plot(gamma_grid, per_set[:, idx], label=label)
     axes[0].set_xlabel("γ")
-    axes[0].set_ylabel(r"Predicted ln($k_0$ / s$^{-1}$)")
+    axes[0].set_ylabel(r"Predicted ln($k_0$ / us$^{-1}$)")
     axes[0].set_title(f"{title}: ln k0 by set")
     axes[0].legend(fontsize=8, ncol=2)
 
@@ -426,7 +444,7 @@ def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: l
         for name, value in reference_lines.items():
             axes[1].axhline(value, linestyle=":", label=f"{name}={value:.3f}")
     axes[1].set_xlabel("γ")
-    axes[1].set_ylabel(r"Mean ln($k_0$ / s$^{-1}$)")
+    axes[1].set_ylabel(r"Mean ln($k_0$ / us$^{-1}$)")
     axes[1].set_title(f"{title}: mean ± std")
     axes[1].legend(fontsize=8)
 
@@ -451,15 +469,71 @@ def save_flooding_plot(title: str, diagnostics: dict[str, object], set_labels: l
 def plot_opes_observed_rate_vs_barrier(set_specs: list[dict[str, object]], bootstrap_stats: dict[str, object]) -> None:
     plt = pyplot()
     barriers = np.array([spec["barrier_kj_mol"] for spec in set_specs], dtype=float)
-    obs_rate = np.array([spec["obs_rate"] for spec in set_specs], dtype=float)
-    obs_rate_err = np.array([entry["obs_rate_std"] for entry in bootstrap_stats["per_set"]], dtype=float)
+    obs_rate = np.array([rate_s_to_us(spec["obs_rate"]) for spec in set_specs], dtype=float)
+    obs_rate_err = np.array([rate_std_s_to_us(entry["obs_rate_std"]) for entry in bootstrap_stats["per_set"]], dtype=float)
     fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
     ax.errorbar(barriers, obs_rate, yerr=obs_rate_err, marker="o", capsize=3)
     ax.set_xlabel(r"OPES barrier (kJ mol$^{-1}$)")
-    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (s$^{-1}$)")
+    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (us$^{-1}$)")
     ax.set_title("OPES observed rate by barrier")
     fig.savefig(OUTPUT_ROOT / "opes_observed_rate_vs_barrier.png", dpi=220)
     plt.close(fig)
+
+
+def plot_ln_kobs_vs_acceleration(
+    set_specs: list[dict[str, object]],
+    diagnostics: dict[str, object],
+    bootstrap_stats: dict[str, object],
+    point_labels: list[str],
+    series_label: str,
+    title: str,
+    output_name: str,
+) -> None:
+    plt = pyplot()
+    ln_acceleration = np.array([spec["avg_bias_gamma1"] for spec in set_specs], dtype=float)
+    ln_kobs_us = np.log(np.array([rate_s_to_us(spec["obs_rate"]) for spec in set_specs], dtype=float))
+    ln_kobs_err = np.array(
+        [rate_std_s_to_us(entry["obs_rate_std"]) / rate_s_to_us(spec["obs_rate"]) for spec, entry in zip(set_specs, bootstrap_stats["per_set"])],
+        dtype=float,
+    )
+    gamma_best = float(diagnostics["gamma_best"])
+    logk0_best = float(ln_rate_s_to_ln_us(diagnostics["logk0_best"]))
+    x_fit = np.linspace(float(np.min(ln_acceleration)) * 0.98, float(np.max(ln_acceleration)) * 1.02, 200)
+    y_fit = logk0_best + gamma_best * x_fit
+
+    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
+    ax.errorbar(ln_acceleration, ln_kobs_us, yerr=ln_kobs_err, marker="o", linestyle="none", capsize=3, label=series_label)
+    ax.plot(x_fit, y_fit, color="tab:red", label=fr"fit: ln($k_{{obs}}$) = ln($k_0$) + $\gamma$ ln($\alpha$)")
+    for point_label, x_value, y_value in zip(point_labels, ln_acceleration, ln_kobs_us):
+        ax.annotate(point_label, (x_value, y_value), textcoords="offset points", xytext=(4, 4), fontsize=8)
+    ax.set_xlabel(r"ln acceleration factor, ln($\alpha$)")
+    ax.set_ylabel(r"ln($k_{\mathrm{obs}}$ / us$^{-1}$)")
+    ax.set_title(title)
+    ax.text(
+        0.03,
+        0.97,
+        f"slope (gamma) = {gamma_best:.3f}\nintercept ln(k0 / us^-1) = {logk0_best:.3f}",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85, "edgecolor": "0.7"},
+    )
+    ax.legend()
+    fig.savefig(OUTPUT_ROOT / output_name, dpi=220)
+    plt.close(fig)
+
+
+def plot_opes_ln_kobs_vs_acceleration(set_specs: list[dict[str, object]], diagnostics: dict[str, object], bootstrap_stats: dict[str, object]) -> None:
+    plot_ln_kobs_vs_acceleration(
+        set_specs,
+        diagnostics,
+        bootstrap_stats,
+        [str(spec["barrier_kj_mol"]) for spec in set_specs],
+        "OPES sets",
+        "OPES slope-style rate scaling",
+        "opes_ln_kobs_vs_acceleration.png",
+    )
 
 
 def run_opes_flooding() -> dict[str, object]:
@@ -481,28 +555,41 @@ def run_opes_flooding() -> dict[str, object]:
     output = {
         "temperature_K": TEMPERATURE_K,
         "timeunit_seconds": TIMEUNIT_SECONDS,
+        "timeunit_microseconds": TIMEUNIT_MICROSECONDS,
+        "rate_unit": "us^-1",
         "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
         "sets": [
             {
                 "set": spec["label"],
                 "barrier_kj_mol": spec["barrier_kj_mol"],
-                "obs_rate": spec["obs_rate"],
-                "obs_rate_std": per_set_bootstrap[spec["label"]]["obs_rate_std"],
-                "obs_rate_ci95_low": per_set_bootstrap[spec["label"]]["obs_rate_ci95_low"],
-                "obs_rate_ci95_high": per_set_bootstrap[spec["label"]]["obs_rate_ci95_high"],
+                "obs_rate": rate_s_to_us(spec["obs_rate"]),
+                "obs_rate_std": rate_std_s_to_us(per_set_bootstrap[spec["label"]]["obs_rate_std"]),
+                "obs_rate_ci95_low": rate_s_to_us(per_set_bootstrap[spec["label"]]["obs_rate_ci95_low"]),
+                "obs_rate_ci95_high": rate_s_to_us(per_set_bootstrap[spec["label"]]["obs_rate_ci95_high"]),
                 "ks_stat": spec["ks_stat"],
                 "p_value": spec["p_value"],
                 "ln_avg_exp_beta_v_gamma1": spec["avg_bias_gamma1"],
+                "avg_acceleration_factor_gamma1": spec["avg_acceleration_factor_gamma1"],
             }
             for spec in set_specs
         ],
-        "flooding_fit": diagnostics,
-        "flooding_fit_bootstrap": bootstrap_stats,
+        "flooding_fit": {
+            **diagnostics,
+            "logk0_best": ln_rate_s_to_ln_us(float(diagnostics["logk0_best"])),
+            "ln_k0_per_set_best": [ln_rate_s_to_ln_us(float(value)) for value in diagnostics["ln_k0_per_set_best"]],
+            "mean_ln_k0": [ln_rate_s_to_ln_us(float(value)) for value in diagnostics["mean_ln_k0"]],
+        },
+        "flooding_fit_bootstrap": {
+            **bootstrap_stats,
+            "logk0_ci95_low": ln_rate_s_to_ln_us(float(bootstrap_stats["logk0_ci95_low"])),
+            "logk0_ci95_high": ln_rate_s_to_ln_us(float(bootstrap_stats["logk0_ci95_high"])),
+        },
     }
     with open(OUTPUT_ROOT / "opes_flooding_summary.json", "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
     save_flooding_plot("OPES EATR-flooding", diagnostics, labels, "opes_flooding_diagnostics.png", bootstrap_stats=bootstrap_stats)
     plot_opes_observed_rate_vs_barrier(set_specs, bootstrap_stats)
+    plot_opes_ln_kobs_vs_acceleration(set_specs, diagnostics, bootstrap_stats)
     return output
 
 
@@ -532,50 +619,84 @@ def run_wt_flooding() -> dict[str, object]:
     output = {
         "temperature_K": TEMPERATURE_K,
         "timeunit_seconds": TIMEUNIT_SECONDS,
+        "timeunit_microseconds": TIMEUNIT_MICROSECONDS,
+        "rate_unit": "us^-1",
         "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
         "sets": [
             {
                 "set": spec["label"],
                 "pace_steps": spec["pace_steps"],
                 "pace_ps": spec["pace_ps"],
-                "obs_rate": spec["obs_rate"],
-                "obs_rate_std": per_set_bootstrap[spec["label"]]["obs_rate_std"],
-                "obs_rate_ci95_low": per_set_bootstrap[spec["label"]]["obs_rate_ci95_low"],
-                "obs_rate_ci95_high": per_set_bootstrap[spec["label"]]["obs_rate_ci95_high"],
+                "obs_rate": rate_s_to_us(spec["obs_rate"]),
+                "obs_rate_std": rate_std_s_to_us(per_set_bootstrap[spec["label"]]["obs_rate_std"]),
+                "obs_rate_ci95_low": rate_s_to_us(per_set_bootstrap[spec["label"]]["obs_rate_ci95_low"]),
+                "obs_rate_ci95_high": rate_s_to_us(per_set_bootstrap[spec["label"]]["obs_rate_ci95_high"]),
                 "ks_stat": spec["ks_stat"],
                 "p_value": spec["p_value"],
                 "ln_avg_exp_beta_v_gamma1": spec["avg_bias_gamma1"],
+                "avg_acceleration_factor_gamma1": spec["avg_acceleration_factor_gamma1"],
             }
             for spec in set_specs
         ],
-        "flooding_fit_all_sets": diagnostics_all,
-        "flooding_fit_filtered_pace_ge_100ps": diagnostics_filtered,
-        "flooding_fit_all_sets_bootstrap": bootstrap_all,
-        "flooding_fit_filtered_pace_ge_100ps_bootstrap": bootstrap_filtered,
+        "flooding_fit_all_sets": {
+            **diagnostics_all,
+            "logk0_best": ln_rate_s_to_ln_us(float(diagnostics_all["logk0_best"])),
+            "ln_k0_per_set_best": [ln_rate_s_to_ln_us(float(value)) for value in diagnostics_all["ln_k0_per_set_best"]],
+            "mean_ln_k0": [ln_rate_s_to_ln_us(float(value)) for value in diagnostics_all["mean_ln_k0"]],
+        },
+        "flooding_fit_filtered_pace_ge_100ps": {
+            **diagnostics_filtered,
+            "logk0_best": ln_rate_s_to_ln_us(float(diagnostics_filtered["logk0_best"])),
+            "ln_k0_per_set_best": [ln_rate_s_to_ln_us(float(value)) for value in diagnostics_filtered["ln_k0_per_set_best"]],
+            "mean_ln_k0": [ln_rate_s_to_ln_us(float(value)) for value in diagnostics_filtered["mean_ln_k0"]],
+        },
+        "flooding_fit_all_sets_bootstrap": {
+            **bootstrap_all,
+            "logk0_ci95_low": ln_rate_s_to_ln_us(float(bootstrap_all["logk0_ci95_low"])),
+            "logk0_ci95_high": ln_rate_s_to_ln_us(float(bootstrap_all["logk0_ci95_high"])),
+        },
+        "flooding_fit_filtered_pace_ge_100ps_bootstrap": {
+            **bootstrap_filtered,
+            "logk0_ci95_low": ln_rate_s_to_ln_us(float(bootstrap_filtered["logk0_ci95_low"])),
+            "logk0_ci95_high": ln_rate_s_to_ln_us(float(bootstrap_filtered["logk0_ci95_high"])),
+        },
     }
     with open(OUTPUT_ROOT / "wt_flooding_summary.json", "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
     save_flooding_plot("WT-MetaD EATR-flooding (all paces)", diagnostics_all, labels, "wt_flooding_all_paces.png", bootstrap_stats=bootstrap_all)
     save_flooding_plot("WT-MetaD EATR-flooding (pace ≥ 100 ps)", diagnostics_filtered, filtered_labels, "wt_flooding_filtered_paces.png", bootstrap_stats=bootstrap_filtered)
     plot_wt_observed_rate_vs_pace(set_specs, diagnostics_filtered, bootstrap_all)
+    plot_wt_ln_kobs_vs_acceleration(set_specs, diagnostics_all, bootstrap_all)
     return output
 
 
 def plot_wt_observed_rate_vs_pace(set_specs: list[dict[str, object]], diagnostics_filtered: dict[str, object], bootstrap_stats: dict[str, object]) -> None:
     plt = pyplot()
     pace_ps = np.array([spec["pace_ps"] for spec in set_specs], dtype=float)
-    obs_rate = np.array([spec["obs_rate"] for spec in set_specs], dtype=float)
-    obs_rate_err = np.array([entry["obs_rate_std"] for entry in bootstrap_stats["per_set"]], dtype=float)
+    obs_rate = np.array([rate_s_to_us(spec["obs_rate"]) for spec in set_specs], dtype=float)
+    obs_rate_err = np.array([rate_std_s_to_us(entry["obs_rate_std"]) for entry in bootstrap_stats["per_set"]], dtype=float)
     fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
     ax.errorbar(pace_ps, obs_rate, yerr=obs_rate_err, marker="o", capsize=3)
     ax.set_xscale("log")
     ax.set_xlabel("MetaD hill deposition pace (ps)")
-    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (s$^{-1}$)")
+    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (us$^{-1}$)")
     ax.set_title("WT-MetaD observed rate by pace")
-    ax.axhline(float(np.exp(diagnostics_filtered["logk0_best"])), color="tab:red", linestyle="--", label="Filtered flooding k0*")
+    ax.axhline(float(rate_s_to_us(np.exp(diagnostics_filtered["logk0_best"]))), color="tab:red", linestyle="--", label="Filtered flooding k0*")
     ax.legend()
     fig.savefig(OUTPUT_ROOT / "wt_observed_rate_vs_pace.png", dpi=220)
     plt.close(fig)
+
+
+def plot_wt_ln_kobs_vs_acceleration(set_specs: list[dict[str, object]], diagnostics: dict[str, object], bootstrap_stats: dict[str, object]) -> None:
+    plot_ln_kobs_vs_acceleration(
+        set_specs,
+        diagnostics,
+        bootstrap_stats,
+        [spec["label"].replace("eruns_pace", "") for spec in set_specs],
+        "WT pace sets",
+        "WT-MetaD slope-style rate scaling",
+        "wt_ln_kobs_vs_acceleration.png",
+    )
 
 
 def main() -> None:
@@ -588,6 +709,7 @@ def main() -> None:
         "generated_files": sorted(path.name for path in OUTPUT_ROOT.iterdir()),
         "notes": [
             "Protein G example trajectories use a 10 fs timestep in LAMMPS real units, so times were converted with 1e-15 s/fs.",
+            "Reported rate constants and observed rates in these example outputs are converted to us^-1.",
             "WT flooding analysis is reported for all pace sets and for a manuscript-style filtered subset with pace >= 100 ps.",
             f"Bootstrap uncertainties use {BOOTSTRAP_RESAMPLES} trajectory-resampling replicas per analysis.",
         ],

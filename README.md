@@ -16,6 +16,13 @@ The packaged commands are:
 - `eatr-check-order`
 - `eatr-analysis-plot`
 
+The repository also includes config-driven analysis scripts for local dataset trees:
+
+- `scripts/analyze_nnp_opes.py`
+- `scripts/analyze_nnp_imetad.py`
+
+Those scripts are intended for batch analysis of directory-structured datasets such as the local `nnp-rate-data/` tree and are configured with TOML files under [analysis-configs](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs).
+
 ## Theory
 
 Rare-event kinetics are often estimated from biased simulations by relating the observed transition times under bias to an underlying unbiased rate constant `k0`.
@@ -202,6 +209,72 @@ eatr-analysis-plot flooding \
   -o opes_figures
 ```
 
+## Config-Driven Dataset Scripts
+
+The packaged CLI tools are best when you want to specify inputs explicitly on the command line. For repeated analysis of a filesystem dataset with fixed conventions, use the local scripts plus TOML config files.
+
+Current config files:
+
+- [analysis-configs/nnp_opes.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/nnp_opes.toml)
+- [analysis-configs/nnp_imetad.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/nnp_imetad.toml)
+
+These configs control:
+
+- input and output roots
+- time and energy unit conversions
+- temperature
+- bias and acceleration column indices
+- directory naming conventions
+- bootstrap count
+- OPES barrier filtering
+
+### OPES dataset script
+
+Run all configured OPES CVs:
+
+```bash
+EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_opes.py
+```
+
+Restrict to one CV:
+
+```bash
+EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_opes.py --cv bias_d1md2
+```
+
+Override the config file:
+
+```bash
+.venv/bin/python scripts/analyze_nnp_opes.py --config analysis-configs/nnp_opes.toml
+```
+
+Outputs per CV:
+
+- flooding summary JSON
+- flooding diagnostics plot
+- `ln(k_obs)` vs barrier plot
+- slope-style `ln(k_obs)` vs acceleration plot
+
+### iMetaD dataset script
+
+Run all configured iMetaD CVs:
+
+```bash
+EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_imetad.py
+```
+
+Restrict to one CV:
+
+```bash
+EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_imetad.py --cv bias_d1d2
+```
+
+Outputs per CV/height series:
+
+- regular-EATR summary JSON
+- `ln(k0)` and `gamma` vs pace plot
+- `ln(k_obs)` vs pace plot
+
 ## Example Data
 
 The repository includes two example collections under [example-data/Ree_Data](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data):
@@ -315,22 +388,6 @@ The generated files are:
 - [opes_flooding_diagnostics.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_diagnostics.png)
 - [opes_observed_rate_vs_barrier.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_observed_rate_vs_barrier.png)
 - [opes_ln_kobs_vs_acceleration.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_ln_kobs_vs_acceleration.png)
-
-## Example Results Produced In This Repository
-
-The example workflow currently reports:
-
-- OPES flooding fit:
-  - `gamma_best ≈ 0.4204`
-  - `logk0_best ≈ 20.9100`
-- WT flooding fit using all pace sets:
-  - `gamma_best ≈ 0.3641`
-  - `logk0_best ≈ 20.6906`
-- WT flooding fit using a filtered subset with pace `>= 100 ps`:
-  - `gamma_best ≈ 0.2689`
-  - `logk0_best ≈ 21.2035`
-
-One MetaD set, `eruns_pace1e3`, produced non-finite values in the regular EATR example workflow, and this is recorded explicitly in the example summary JSON.
 
 ## Python Usage
 

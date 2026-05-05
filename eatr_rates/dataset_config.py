@@ -58,6 +58,7 @@ class ImetadAnalysisConfig(CommonAnalysisConfig):
     pace_dir_prefix: str
     run_dir_prefix: str
     timestep_ps: float
+    use_height_dirs: bool
 
 
 def load_opes_config(config_path: Path) -> OpesAnalysisConfig:
@@ -108,4 +109,5 @@ def load_imetad_config(config_path: Path) -> ImetadAnalysisConfig:
         pace_dir_prefix=str(filesystem.get("pace_dir_prefix", "pace")),
         run_dir_prefix=str(filesystem.get("run_dir_prefix", "s")),
         timestep_ps=float(analysis["timestep_ps"]),
+        use_height_dirs=bool(filesystem.get("use_height_dirs", True)),
     )

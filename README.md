@@ -18,10 +18,10 @@ The packaged commands are:
 
 The repository also includes config-driven analysis scripts for local dataset trees:
 
-- `scripts/analyze_nnp_opes.py`
-- `scripts/analyze_nnp_imetad.py`
+- `scripts/analyze_opes_dataset.py`
+- `scripts/analyze_imetad_dataset.py`
 
-Those scripts are intended for batch analysis of directory-structured datasets such as the local `nnp-rate-data/` tree and are configured with TOML files under [analysis-configs](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs).
+Those scripts are intended for batch analysis of directory-structured datasets and are configured with TOML files under [analysis-configs](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs).
 
 ## Theory
 
@@ -213,10 +213,10 @@ eatr-analysis-plot flooding \
 
 The packaged CLI tools are best when you want to specify inputs explicitly on the command line. For repeated analysis of a filesystem dataset with fixed conventions, use the local scripts plus TOML config files.
 
-Current config files:
+Example config files:
 
-- [analysis-configs/nnp_opes.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/nnp_opes.toml)
-- [analysis-configs/nnp_imetad.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/nnp_imetad.toml)
+- [analysis-configs/ree_opes.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/ree_opes.toml)
+- [analysis-configs/ree_imetad.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/ree_imetad.toml)
 
 These configs control:
 
@@ -230,22 +230,28 @@ These configs control:
 
 ### OPES dataset script
 
-Run all configured OPES CVs:
+Run the Ree OPES example from its TOML:
 
 ```bash
-EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_opes.py
+EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py \
+  --config analysis-configs/ree_opes.toml
 ```
 
-Restrict to one CV:
+That config points at [example-data/Ree_Data/E_end_end_distance_opes](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_opes) and sets:
+
+- `timeunit_seconds = 1e-15`
+- `temperature_k = 312.0`
+- `bias_col = 4`
+- directory prefixes `eruns_barr*` and `run_*`
+
+To adapt this to a different OPES dataset, copy the TOML and change the roots, column indices, and directory/file naming conventions.
+
+Restrict to one configured CV:
 
 ```bash
-EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_opes.py --cv bias_d1md2
-```
-
-Override the config file:
-
-```bash
-.venv/bin/python scripts/analyze_nnp_opes.py --config analysis-configs/nnp_opes.toml
+EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py \
+  --config analysis-configs/ree_opes.toml \
+  --cv E_end_end_distance_opes
 ```
 
 Outputs per CV:
@@ -257,16 +263,28 @@ Outputs per CV:
 
 ### iMetaD dataset script
 
-Run all configured iMetaD CVs:
+Run the Ree MetaD example from its TOML:
 
 ```bash
-EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_imetad.py
+EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py \
+  --config analysis-configs/ree_imetad.toml
 ```
 
-Restrict to one CV:
+That config points at [example-data/Ree_Data/E_end_end_distance_wt](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_wt) and sets:
+
+- `timeunit_seconds = 1e-15`
+- `timestep_ps = 0.01`
+- `temperature_k = 312.0`
+- `bias_col = 2`
+- `acc_col = 4`
+- `use_height_dirs = false` because the Ree MetaD example has `eruns_pace*` directly under the dataset root
+
+Restrict to one configured CV:
 
 ```bash
-EATR_THREADS=4 .venv/bin/python scripts/analyze_nnp_imetad.py --cv bias_d1d2
+EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py \
+  --config analysis-configs/ree_imetad.toml \
+  --cv E_end_end_distance_wt
 ```
 
 Outputs per CV/height series:

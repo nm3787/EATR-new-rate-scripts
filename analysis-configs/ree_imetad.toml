@@ -1,0 +1,22 @@
+[analysis]
+input_root = "../example-data/Ree_Data"
+output_root = "../example-data/ree-analysis/imetad"
+timeunit_seconds = 1e-15
+timestep_ps = 0.01
+temperature_k = 312.0
+energyunit_kj_per_mol = 1.0
+bootstrap_resamples = 50
+threads_env_var = "EATR_THREADS"
+
+[filesystem]
+cv_dir_prefix = "E_end_end_distance_wt"
+height_dir_prefix = ""
+use_height_dirs = false
+pace_dir_prefix = "eruns_pace"
+run_dir_prefix = "run_"
+colvar_glob = "metad.colvar"
+log_glob = "p.log"
+
+[columns]
+bias_col = 2
+acc_col = 4

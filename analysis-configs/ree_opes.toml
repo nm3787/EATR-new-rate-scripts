@@ -1,0 +1,21 @@
+[analysis]
+input_root = "../example-data/Ree_Data"
+output_root = "../example-data/ree-analysis/opes"
+timeunit_seconds = 1e-15
+temperature_k = 312.0
+energyunit_kj_per_mol = 1.0
+bootstrap_resamples = 50
+threads_env_var = "EATR_THREADS"
+
+[filesystem]
+cv_dir_prefix = "E_end_end_distance_opes"
+barrier_dir_prefix = "eruns_barr"
+run_dir_prefix = "run_"
+colvar_glob = "opes_short.colvar"
+log_glob = "p.log"
+
+[columns]
+bias_col = 4
+
+[filtering]
+max_barrier_included = 13.0

@@ -175,18 +175,32 @@ def plot_observed_ln_rate_vs_pace(summaries: list[dict[str, object]], output_pat
     plt.close(fig)
 
 
-def analyze_height(height_dir: Path, output_root: Path, threads: int, numboots: int, seed: int, config: ImetadAnalysisConfig) -> Path:
+def analyze_series(
+    cv_name: str,
+    series_dir: Path,
+    series_name: str,
+    output_root: Path,
+    threads: int,
+    numboots: int,
+    seed: int,
+    config: ImetadAnalysisConfig,
+) -> Path:
     beta = beta_value(config)
-    height_output_dir = output_root / height_dir.parent.name / height_dir.name
-    height_output_dir.mkdir(parents=True, exist_ok=True)
+    if config.use_height_dirs:
+        series_output_dir = output_root / cv_name / series_name
+        file_prefix = f"{cv_name}_{series_name}"
+    else:
+        series_output_dir = output_root / cv_name
+        file_prefix = cv_name
+    series_output_dir.mkdir(parents=True, exist_ok=True)
 
-    pace_dirs = sorted_prefixed_dirs(height_dir, config.pace_dir_prefix)
+    pace_dirs = sorted_prefixed_dirs(series_dir, config.pace_dir_prefix)
     rng = np.random.default_rng(seed)
     summaries = [load_regular_set(pace_dir, beta, numboots, threads, rng, config) for pace_dir in pace_dirs]
 
     payload = {
-        "cv": height_dir.parent.name,
-        "height": height_dir.name,
+        "cv": cv_name,
+        "series": series_name,
         "config_path": str(config.config_path),
         "temperature_K": config.temperature_k,
         "energyunit_kj_per_mol": config.energyunit_kj_per_mol,
@@ -195,19 +209,21 @@ def analyze_height(height_dir: Path, output_root: Path, threads: int, numboots: 
         "bootstrap_resamples": numboots,
         "sets": summaries,
     }
-    summary_path = height_output_dir / f"{height_dir.parent.name}_{height_dir.name}_regular_eatr_summary.json"
+    if config.use_height_dirs:
+        payload["height"] = series_name
+    summary_path = series_output_dir / f"{file_prefix}_regular_eatr_summary.json"
     with open(summary_path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
 
     plot_regular_series(
         summaries,
-        height_output_dir / f"{height_dir.parent.name}_{height_dir.name}_regular_eatr_vs_pace.png",
-        f"{height_dir.parent.name} {height_dir.name} regular EATR",
+        series_output_dir / f"{file_prefix}_regular_eatr_vs_pace.png",
+        f"{cv_name} {series_name} regular EATR",
     )
     plot_observed_ln_rate_vs_pace(
         summaries,
-        height_output_dir / f"{height_dir.parent.name}_{height_dir.name}_ln_kobs_vs_pace.png",
-        f"{height_dir.parent.name} {height_dir.name} regular EATR",
+        series_output_dir / f"{file_prefix}_ln_kobs_vs_pace.png",
+        f"{cv_name} {series_name} regular EATR",
     )
     return summary_path
 
@@ -243,17 +259,25 @@ def main(argv: list[str] | None = None) -> int:
     if not cv_dirs:
         raise SystemExit(f"No CV directories found under {input_root}")
 
-    height_dirs: list[Path] = []
+    series_specs: list[tuple[str, Path, str]] = []
     for cv_dir in cv_dirs:
-        height_dirs.extend(sorted([path for path in cv_dir.iterdir() if path.is_dir() and path.name.startswith(config.height_dir_prefix)]))
-    if not height_dirs:
-        raise SystemExit(f"No height directories found under {input_root}")
+        if config.use_height_dirs:
+            height_dirs = sorted(
+                [path for path in cv_dir.iterdir() if path.is_dir() and path.name.startswith(config.height_dir_prefix)]
+            )
+            for height_dir in height_dirs:
+                series_specs.append((cv_dir.name, height_dir, height_dir.name))
+        else:
+            series_specs.append((cv_dir.name, cv_dir, "series"))
+    if not series_specs:
+        raise SystemExit(f"No analysis series found under {input_root}")
 
-    def worker(item: tuple[int, Path]) -> Path:
-        index, height_dir = item
-        return analyze_height(height_dir, output_root, threads, numboots, 20260504 + index, config)
+    def worker(item: tuple[int, tuple[str, Path, str]]) -> Path:
+        index, spec = item
+        cv_name, series_dir, series_name = spec
+        return analyze_series(cv_name, series_dir, series_name, output_root, threads, numboots, 20260504 + index, config)
 
-    summary_paths = thread_map(worker, list(enumerate(height_dirs)), 1)
+    summary_paths = thread_map(worker, list(enumerate(series_specs)), 1)
     manifest = {
         "config_path": str(config.config_path),
         "input_root": str(input_root),

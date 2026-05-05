@@ -21,7 +21,7 @@ The repository also includes config-driven analysis scripts for local dataset tr
 - `scripts/analyze_opes_dataset.py`
 - `scripts/analyze_imetad_dataset.py`
 
-Those scripts are intended for batch analysis of directory-structured datasets and are configured with TOML files under [analysis-configs](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs).
+Those scripts are intended for batch analysis of directory-structured datasets and are configured with TOML files under [analysis-configs](analysis-configs).
 
 ## Theory
 
@@ -38,11 +38,11 @@ This repository includes several related estimators:
 - `EATR-flooding`
   Extends the same idea to quasi-static or flooding-style biasing, especially OPES flooding, by comparing multiple sets of simulations performed with different bias strengths.
 
-The relevant papers included in [papers](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers) are:
+The relevant papers included in [papers](papers) are:
 
-- [52_2024_Mazzaferro_EATR_JCTC.pdf](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers/52_2024_Mazzaferro_EATR_JCTC.pdf)
-- [52_2024_Mazzaferro_EATR_JCTC_SI.pdf](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers/52_2024_Mazzaferro_EATR_JCTC_SI.pdf)
-- [eatr-flooding-plusSI-arxiv.pdf](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/papers/eatr-flooding-plusSI-arxiv.pdf)
+- [52_2024_Mazzaferro_EATR_JCTC.pdf](papers/52_2024_Mazzaferro_EATR_JCTC.pdf)
+- [52_2024_Mazzaferro_EATR_JCTC_SI.pdf](papers/52_2024_Mazzaferro_EATR_JCTC_SI.pdf)
+- [eatr-flooding-plusSI-arxiv.pdf](papers/eatr-flooding-plusSI-arxiv.pdf)
 
 Practical guidance:
 
@@ -215,8 +215,8 @@ The packaged CLI tools are best when you want to specify inputs explicitly on th
 
 Example config files:
 
-- [analysis-configs/ree_opes.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/ree_opes.toml)
-- [analysis-configs/ree_imetad.toml](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/analysis-configs/ree_imetad.toml)
+- [analysis-configs/ree_opes.toml](analysis-configs/ree_opes.toml)
+- [analysis-configs/ree_imetad.toml](analysis-configs/ree_imetad.toml)
 
 These configs control:
 
@@ -237,7 +237,7 @@ EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py \
   --config analysis-configs/ree_opes.toml
 ```
 
-That config points at [example-data/Ree_Data/E_end_end_distance_opes](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_opes) and sets:
+That config points at [example-data/Ree_Data/E_end_end_distance_opes](example-data/Ree_Data/E_end_end_distance_opes) and sets:
 
 - `timeunit_seconds = 1e-15`
 - `temperature_k = 312.0`
@@ -270,7 +270,7 @@ EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py \
   --config analysis-configs/ree_imetad.toml
 ```
 
-That config points at [example-data/Ree_Data/E_end_end_distance_wt](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_wt) and sets:
+That config points at [example-data/Ree_Data/E_end_end_distance_wt](example-data/Ree_Data/E_end_end_distance_wt) and sets:
 
 - `timeunit_seconds = 1e-15`
 - `timestep_ps = 0.01`
@@ -295,11 +295,11 @@ Outputs per CV/height series:
 
 ## Example Data
 
-The repository includes two example collections under [example-data/Ree_Data](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data):
+The repository includes two example collections under [example-data/Ree_Data](example-data/Ree_Data):
 
-- [E_end_end_distance_opes](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_opes)
+- [E_end_end_distance_opes](example-data/Ree_Data/E_end_end_distance_opes)
   OPES flooding simulations with sets `eruns_barr5`, `7`, `9`, `11`, `13`
-- [E_end_end_distance_wt](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/Ree_Data/E_end_end_distance_wt)
+- [E_end_end_distance_wt](example-data/Ree_Data/E_end_end_distance_wt)
   WT-MetaD simulations with sets `eruns_pace1e2`, `1e3`, `1e4`, `2e4`, `5e4`, `1e5`, `5e5`, `1e6`
 
 For these protein G examples, the LAMMPS inputs use `real` units with a `10 fs` timestep, so the correct time conversion is:
@@ -377,7 +377,7 @@ The repository now includes a CLI-only example workflow that runs the packaged c
 bash scripts/run_example_cli.sh
 ```
 
-That script writes JSON and figure outputs under [example-data/test_results_cli](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results_cli).
+That script writes JSON and figure outputs under [example-data/test_results_cli](example-data/test_results_cli).
 For the WT pace ladder it uses `EATR MLE` to keep the shell workflow practical, and for the flooding workflows it enables bootstrap uncertainty analysis. By default it uses `50` bootstrap replicas where bootstrap is enabled; for a faster smoke run you can lower that with `EATR_NUMBOOTS`, for example `EATR_NUMBOOTS=5 bash scripts/run_example_cli.sh`.
 
 For comparison, the repository also includes the Python example runner:
@@ -396,26 +396,26 @@ EATR_THREADS=4 .venv/bin/python scripts/run_example_analyses.py
 
 The generated files are:
 
-- [wt_regular_eatr_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_summary.json)
-- [wt_regular_eatr_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_regular_eatr_vs_pace.png)
-- [wt_flooding_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_flooding_summary.json)
-- [wt_flooding_all_paces.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_flooding_all_paces.png)
-- [wt_flooding_filtered_paces.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_flooding_filtered_paces.png)
-- [wt_observed_rate_vs_pace.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/wt_observed_rate_vs_pace.png)
-- [opes_flooding_summary.json](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_summary.json)
-- [opes_flooding_diagnostics.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_flooding_diagnostics.png)
-- [opes_observed_rate_vs_barrier.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_observed_rate_vs_barrier.png)
-- [opes_ln_kobs_vs_acceleration.png](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/example-data/test_results/opes_ln_kobs_vs_acceleration.png)
+- [wt_regular_eatr_summary.json](example-data/test_results/wt_regular_eatr_summary.json)
+- [wt_regular_eatr_vs_pace.png](example-data/test_results/wt_regular_eatr_vs_pace.png)
+- [wt_flooding_summary.json](example-data/test_results/wt_flooding_summary.json)
+- [wt_flooding_all_paces.png](example-data/test_results/wt_flooding_all_paces.png)
+- [wt_flooding_filtered_paces.png](example-data/test_results/wt_flooding_filtered_paces.png)
+- [wt_observed_rate_vs_pace.png](example-data/test_results/wt_observed_rate_vs_pace.png)
+- [opes_flooding_summary.json](example-data/test_results/opes_flooding_summary.json)
+- [opes_flooding_diagnostics.png](example-data/test_results/opes_flooding_diagnostics.png)
+- [opes_observed_rate_vs_barrier.png](example-data/test_results/opes_observed_rate_vs_barrier.png)
+- [opes_ln_kobs_vs_acceleration.png](example-data/test_results/opes_ln_kobs_vs_acceleration.png)
 
 ## Python Usage
 
 The library functions remain available from Python, and the packaged CLI modules now separate the numerical analysis from output formatting:
 
-- [eatr_rates/rates_cmd.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/eatr_rates/rates_cmd.py)
-- [eatr_rates/rates_eatr_opes.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/eatr_rates/rates_eatr_opes.py)
-- [rate_methods_library.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/rate_methods_library.py)
+- [eatr_rates/rates_cmd.py](eatr_rates/rates_cmd.py)
+- [eatr_rates/rates_eatr_opes.py](eatr_rates/rates_eatr_opes.py)
+- [rate_methods_library.py](rate_methods_library.py)
 
-If you want to build automated regression tests, the easiest target is the example runner in [scripts/run_example_analyses.py](/Volumes/HockyExtraSpace/Dropbox/research/projects/NNP-EATR-data-analysis/EATR-new-rate-scripts/scripts/run_example_analyses.py) and the JSON outputs it writes.
+If you want to build automated regression tests, the easiest target is the example runner in [scripts/run_example_analyses.py](scripts/run_example_analyses.py) and the JSON outputs it writes.
 
 ## Tests
 

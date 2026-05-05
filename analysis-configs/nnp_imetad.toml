@@ -1,0 +1,21 @@
+[analysis]
+input_root = "../nnp-rate-data/imetad"
+output_root = "../nnp-rate-data/analysis/imetad"
+timeunit_seconds = 1e-12
+timestep_ps = 5e-4
+temperature_k = 298.15
+energyunit_kj_per_mol = 4.184
+bootstrap_resamples = 50
+threads_env_var = "EATR_THREADS"
+
+[filesystem]
+cv_dir_prefix = "bias_"
+height_dir_prefix = "height"
+pace_dir_prefix = "pace"
+run_dir_prefix = "s"
+colvar_glob = "*.colvar.dat"
+log_glob = "*.plumed.log"
+
+[columns]
+bias_col = 11
+acc_col = 14

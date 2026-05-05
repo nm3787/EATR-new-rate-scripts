@@ -206,12 +206,12 @@ def plot_flooding(args: argparse.Namespace) -> int:
     plt = pyplot()
 
     fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
-    ax.plot(condition_values, kobs, marker="o")
-    for report, xval, yval in zip(reports, condition_values, kobs):
+    ax.plot(condition_values, log_kobs, marker="o")
+    for report, xval, yval in zip(reports, condition_values, log_kobs):
         ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
     ax.set_xlabel(f"{args.condition_label}{unit_suffix}")
-    ax.set_ylabel(r"Observed $k_{\mathrm{obs}}$ (s$^{-1}$)")
-    ax.set_title(f"{args.title_prefix}: observed rate by set")
+    ax.set_ylabel(r"Observed ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
+    ax.set_title(f"{args.title_prefix}: ln observed rate by set")
     fig.savefig(f"{prefix}_observed_rate.png", dpi=220)
     plt.close(fig)
 

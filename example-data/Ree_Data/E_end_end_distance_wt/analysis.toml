@@ -1,6 +1,6 @@
 [analysis]
-input_root = "../example-data/Ree_Data"
-output_root = "../example-data/ree-analysis/imetad"
+input_root = ".."
+output_root = "../../toml-example-results/imetad"
 timeunit_seconds = 1e-15
 timestep_ps = 0.01
 temperature_k = 312.0

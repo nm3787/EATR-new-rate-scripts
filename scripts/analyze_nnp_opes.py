@@ -14,6 +14,17 @@ if str(ROOT) not in sys.path:
 
 from eatr_rates.dataset_config import OpesAnalysisConfig, load_opes_config
 from eatr_rates.analysis_io import collect_completed_run_files, sorted_prefixed_dirs
+from eatr_rates.plot_style import (
+    BLACK,
+    BLUE,
+    GRAY,
+    LIGHT_BLUE,
+    SET_COLORS,
+    add_panel_labels,
+    apply_publication_style,
+    style_axis,
+    style_axes,
+)
 import ks_censored as ksc
 from scripts.run_example_analyses import (
     bootstrap_flooding,
@@ -41,6 +52,7 @@ def pyplot():
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    apply_publication_style(plt)
 
     return plt
 
@@ -106,38 +118,38 @@ def save_flooding_diagnostics_plot(
     gamma_best = float(diagnostics["gamma_best"])
     logk0_best = float(diagnostics["logk0_best"])
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), constrained_layout=True)
+    fig, axes = plt.subplots(3, 1, figsize=(3.35, 6.85), sharex=True, gridspec_kw={"hspace": 0.04})
 
     for idx, label in enumerate(set_labels):
-        axes[0].plot(gamma_grid, per_set[:, idx], label=label)
-    axes[0].set_xlabel("gamma")
+        axes[0].plot(gamma_grid, per_set[:, idx], label=label, color=SET_COLORS[idx % len(SET_COLORS)])
     axes[0].set_ylabel(r"Predicted ln($k_0$ / s$^{-1}$)")
-    axes[0].set_title(f"{title}: ln k0 by set")
-    axes[0].legend(fontsize=8, ncol=2)
+    axes[0].legend(loc="lower left", ncol=2, handlelength=1.4, columnspacing=0.8)
 
     std_ln_k0 = np.sqrt(var_ln_k0)
-    axes[1].plot(gamma_grid, mean_ln_k0, color="black")
-    axes[1].fill_between(gamma_grid, mean_ln_k0 - std_ln_k0, mean_ln_k0 + std_ln_k0, color="tab:blue", alpha=0.2)
-    axes[1].axvline(gamma_best, color="tab:red", linestyle="--", label=f"gamma*={gamma_best:.3f}")
-    axes[1].axhline(logk0_best, color="tab:green", linestyle="--", label=f"ln k0*={logk0_best:.3f}")
-    axes[1].set_xlabel("gamma")
+    axes[1].plot(gamma_grid, mean_ln_k0, color=BLUE)
+    axes[1].fill_between(gamma_grid, mean_ln_k0 - std_ln_k0, mean_ln_k0 + std_ln_k0, color=LIGHT_BLUE, alpha=0.9)
+    axes[1].axvline(gamma_best, color=BLACK, linestyle="--", label=fr"min-var. $\gamma$ = {gamma_best:.2f}")
+    axes[1].axhline(logk0_best, color=BLUE, linestyle="--", label=fr"mean ln($k_0$) = {logk0_best:.2f}")
     axes[1].set_ylabel(r"Mean ln($k_0$ / s$^{-1}$)")
-    axes[1].set_title(f"{title}: mean +/- std")
-    axes[1].legend(fontsize=8)
+    axes[1].legend(loc="lower left", handlelength=1.5)
 
-    axes[2].plot(gamma_grid, var_ln_k0, color="tab:purple")
-    axes[2].axvline(gamma_best, color="tab:red", linestyle="--")
+    axes[2].plot(gamma_grid, var_ln_k0, color=BLACK)
+    axes[2].axvline(gamma_best, color=BLACK, linestyle="--")
     axes[2].set_xlabel("gamma")
     axes[2].set_ylabel(r"Var[ln($k_0$)]")
-    axes[2].set_title(f"{title}: minimum variance")
 
     if bootstrap_stats is not None:
         fig.suptitle(
-            f"bootstrap sigma(gamma*)={float(bootstrap_stats['gamma_std']):.3f}, "
-            f"sigma(ln k0*)={float(bootstrap_stats['logk0_std']):.3f}",
-            fontsize=10,
-            y=1.02,
+            f"{title}    bootstrap sigma(gamma*) = {float(bootstrap_stats['gamma_std']):.3f}, "
+            f"sigma(ln k0*) = {float(bootstrap_stats['logk0_std']):.3f}",
+            fontsize=10.0,
+            y=0.985,
         )
+    style_axes(axes)
+    add_panel_labels(axes)
+    for ax in axes[:-1]:
+        ax.tick_params(labelbottom=False)
+    fig.subplots_adjust(top=0.93, bottom=0.08, left=0.22, right=0.98, hspace=0.04)
 
     fig.savefig(output_path, dpi=220)
     plt.close(fig)
@@ -151,13 +163,24 @@ def plot_observed_ln_rate_vs_barrier(set_specs: list[dict[str, object]], bootstr
         [entry["obs_rate_std"] / spec["obs_rate"] for spec, entry in zip(set_specs, bootstrap_stats["per_set"])],
         dtype=float,
     )
-    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
-    ax.errorbar(barriers, ln_obs_rate, yerr=ln_obs_rate_err, marker="o", capsize=3)
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
+    ax.errorbar(
+        barriers,
+        ln_obs_rate,
+        yerr=ln_obs_rate_err,
+        marker="o",
+        capsize=2.5,
+        color=BLUE,
+        ecolor=BLUE,
+        elinewidth=1.0,
+        markerfacecolor=BLUE,
+        markeredgecolor=BLUE,
+    )
     for spec, xval, yval in zip(set_specs, barriers, ln_obs_rate):
-        ax.annotate(str(spec["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        ax.annotate(str(spec["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     ax.set_xlabel(r"OPES barrier (kcal mol$^{-1}$)")
     ax.set_ylabel(r"Observed ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    ax.set_title("NNP OPES ln observed rate by barrier")
+    style_axis(ax)
     fig.savefig(output_path, dpi=220)
     plt.close(fig)
 
@@ -185,22 +208,26 @@ def plot_ln_kobs_vs_acceleration(
     )
     y_fit = intercept + slope * x_fit
 
-    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
     ax.errorbar(
         ln_acceleration,
         ln_kobs,
         yerr=ln_kobs_err,
         marker="o",
         linestyle="none",
-        capsize=3,
+        capsize=2.5,
+        color=BLUE,
+        ecolor=BLUE,
+        elinewidth=1.0,
+        markerfacecolor=BLUE,
+        markeredgecolor=BLUE,
         label="barrier sets",
     )
-    ax.plot(x_fit, y_fit, color="tab:red", label="linear fit to plotted data")
+    ax.plot(x_fit, y_fit, color=BLACK, label="linear fit")
     for spec, x_value, y_value in zip(set_specs, ln_acceleration, ln_kobs):
-        ax.annotate(str(spec["barrier"]), (x_value, y_value), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        ax.annotate(str(spec["barrier"]), (x_value, y_value), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     ax.set_xlabel(r"ln acceleration factor, ln($\alpha$)")
     ax.set_ylabel(r"ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    ax.set_title(title)
     ax.text(
         0.03,
         0.97,
@@ -209,9 +236,10 @@ def plot_ln_kobs_vs_acceleration(
         va="top",
         ha="left",
         fontsize=9,
-        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85, "edgecolor": "0.7"},
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.9, "edgecolor": GRAY, "linewidth": 0.6},
     )
-    ax.legend()
+    style_axis(ax)
+    ax.legend(loc="lower right", handlelength=1.5)
     fig.savefig(output_path, dpi=220)
     plt.close(fig)
 

@@ -15,6 +15,16 @@ if str(ROOT) not in sys.path:
 
 from eatr_rates.dataset_config import ImetadAnalysisConfig, load_imetad_config
 from eatr_rates.analysis_io import collect_completed_run_files, sorted_prefixed_dirs
+from eatr_rates.plot_style import (
+    BLACK,
+    BLUE,
+    GRAY,
+    ORANGE,
+    add_panel_labels,
+    apply_publication_style,
+    style_axis,
+    style_axes,
+)
 from scripts.run_example_analyses import (
     bootstrap_regular_eatr,
     build_prepared_data,
@@ -42,6 +52,7 @@ def pyplot():
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    apply_publication_style(plt)
 
     return plt
 
@@ -135,22 +146,48 @@ def plot_regular_series(summaries: list[dict[str, object]], output_path: Path, t
     ln_k_mle_err = np.array([entry["eatr_mle_ln_k_std"] for entry in summaries], dtype=float)
     gamma_mle_err = np.array([entry["eatr_mle_gamma_std"] for entry in summaries], dtype=float)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
-    axes[0].errorbar(pace_ps, ln_k_mle, yerr=ln_k_mle_err, marker="o", capsize=3, label="EATR MLE bootstrap sigma")
-    axes[0].plot(pace_ps, ln_k_cdf, marker="s", label="EATR CDF")
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 4.75), sharex=True, gridspec_kw={"hspace": 0.04})
+    axes[0].errorbar(
+        pace_ps,
+        ln_k_mle,
+        yerr=ln_k_mle_err,
+        marker="o",
+        capsize=2.5,
+        color=BLUE,
+        ecolor=BLUE,
+        elinewidth=1.0,
+        markerfacecolor=BLUE,
+        markeredgecolor=BLUE,
+        label="EATR MLE",
+    )
+    axes[0].plot(pace_ps, ln_k_cdf, marker="s", color=ORANGE, label="EATR CDF")
     axes[0].set_xscale("log")
-    axes[0].set_xlabel("MetaD hill deposition pace (ps)")
     axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
-    axes[0].set_title(title)
-    axes[0].legend()
+    axes[0].legend(loc="best", handlelength=1.5)
 
-    axes[1].errorbar(pace_ps, gamma_mle, yerr=gamma_mle_err, marker="o", capsize=3, label="EATR MLE bootstrap sigma")
-    axes[1].plot(pace_ps, gamma_cdf, marker="s", label="EATR CDF")
+    axes[1].errorbar(
+        pace_ps,
+        gamma_mle,
+        yerr=gamma_mle_err,
+        marker="o",
+        capsize=2.5,
+        color=BLUE,
+        ecolor=BLUE,
+        elinewidth=1.0,
+        markerfacecolor=BLUE,
+        markeredgecolor=BLUE,
+        label="EATR MLE",
+    )
+    axes[1].plot(pace_ps, gamma_cdf, marker="s", color=ORANGE, label="EATR CDF")
     axes[1].set_xscale("log")
     axes[1].set_xlabel("MetaD hill deposition pace (ps)")
     axes[1].set_ylabel("Estimated gamma")
-    axes[1].set_title(f"{title}: biasing efficiency")
-    axes[1].legend()
+    axes[1].legend(loc="best", handlelength=1.5)
+    style_axes(axes)
+    add_panel_labels(axes, ["(a)", "(b)"])
+    axes[0].tick_params(labelbottom=False)
+    fig.suptitle(title, fontsize=10.0, y=0.985)
+    fig.subplots_adjust(top=0.93, bottom=0.09, left=0.22, right=0.98, hspace=0.04)
 
     fig.savefig(output_path, dpi=220)
     plt.close(fig)
@@ -165,12 +202,23 @@ def plot_observed_ln_rate_vs_pace(summaries: list[dict[str, object]], output_pat
     )
     ln_kobs_err = np.array([entry["eatr_mle_ln_k_std"] for entry in summaries], dtype=float)
 
-    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
-    ax.errorbar(pace_ps, ln_kobs, yerr=ln_kobs_err, marker="o", capsize=3)
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
+    ax.errorbar(
+        pace_ps,
+        ln_kobs,
+        yerr=ln_kobs_err,
+        marker="o",
+        capsize=2.5,
+        color=BLUE,
+        ecolor=BLUE,
+        elinewidth=1.0,
+        markerfacecolor=BLUE,
+        markeredgecolor=BLUE,
+    )
     ax.set_xscale("log")
     ax.set_xlabel("MetaD hill deposition pace (ps)")
     ax.set_ylabel(r"Observed ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    ax.set_title(f"{title}: observed rate")
+    style_axis(ax)
     fig.savefig(output_path, dpi=220)
     plt.close(fig)
 

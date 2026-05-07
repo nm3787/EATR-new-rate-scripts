@@ -5,6 +5,17 @@ import json
 from pathlib import Path
 
 import numpy as np
+from eatr_rates.plot_style import (
+    BLACK,
+    BLUE,
+    GRAY,
+    LIGHT_BLUE,
+    ORANGE,
+    add_panel_labels,
+    apply_publication_style,
+    style_axis,
+    style_axes,
+)
 
 
 def pyplot():
@@ -12,6 +23,7 @@ def pyplot():
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    apply_publication_style(plt)
 
     return plt
 
@@ -117,32 +129,44 @@ def plot_regular_series(args: argparse.Namespace) -> int:
 
     plt = pyplot()
     ncols = 2 if gamma_values is not None else 1
-    fig, axes = plt.subplots(1, ncols, figsize=(12, 4.5) if ncols == 2 else (6.5, 4.5), constrained_layout=True)
-    if ncols == 1:
+    if ncols == 2:
+        fig, axes = plt.subplots(2, 1, figsize=(3.35, 5.35), sharex=True, gridspec_kw={"hspace": 0.04})
+    else:
+        fig, axes = plt.subplots(1, 1, figsize=(3.35, 2.23), constrained_layout=True)
         axes = [axes]
 
     if log_error is None:
-        axes[0].plot(xvalues, log_values, marker="o")
+        axes[0].plot(xvalues, log_values, marker="o", color=BLUE)
     else:
-        axes[0].errorbar(xvalues, log_values, yerr=log_error, marker="o", capsize=3)
+        axes[0].errorbar(
+            xvalues, log_values, yerr=log_error, marker="o", capsize=2.5,
+            color=BLUE, ecolor=BLUE, elinewidth=1.0, markerfacecolor=BLUE, markeredgecolor=BLUE
+        )
     for label, xval, yval in zip(labels, xvalues, log_values):
-        axes[0].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        axes[0].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     axes[0].set_xscale(args.xscale)
-    axes[0].set_xlabel(args.xlabel)
     axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
-    axes[0].set_title(log_key)
+    if ncols == 1:
+        axes[0].set_xlabel(args.xlabel)
+        style_axis(axes[0])
 
     if gamma_values is not None:
         if gamma_error is None:
-            axes[1].plot(xvalues, gamma_values, marker="o")
+            axes[1].plot(xvalues, gamma_values, marker="o", color=BLUE)
         else:
-            axes[1].errorbar(xvalues, gamma_values, yerr=gamma_error, marker="o", capsize=3)
+            axes[1].errorbar(
+                xvalues, gamma_values, yerr=gamma_error, marker="o", capsize=2.5,
+                color=BLUE, ecolor=BLUE, elinewidth=1.0, markerfacecolor=BLUE, markeredgecolor=BLUE
+            )
         for label, xval, yval in zip(labels, xvalues, gamma_values):
-            axes[1].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+            axes[1].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
         axes[1].set_xscale(args.xscale)
         axes[1].set_xlabel(args.xlabel)
         axes[1].set_ylabel("Estimated γ")
-        axes[1].set_title(gamma_key)
+        style_axes(axes)
+        add_panel_labels(axes, ["(a)", "(b)"])
+        axes[0].tick_params(labelbottom=False)
+        fig.subplots_adjust(top=0.98, bottom=0.10, left=0.22, right=0.98, hspace=0.04)
 
     fig.savefig(args.output, dpi=220)
     plt.close(fig)
@@ -160,26 +184,33 @@ def plot_eatr_comparison(payloads, xvalues, labels, xlabel: str, xscale: str, ou
     mle_ln_k_err = np.array([float(payload.get("EATR MLE ln k std", 0.0)) for payload in payloads], dtype=float)
     mle_gamma_err = np.array([float(payload.get("EATR MLE gamma std", 0.0)) for payload in payloads], dtype=float)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
-    axes[0].errorbar(xvalues, mle_ln_k, yerr=mle_ln_k_err, marker="o", capsize=3, label="EATR MLE")
-    axes[0].plot(xvalues, cdf_ln_k, marker="s", label="EATR CDF")
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 5.35), sharex=True, gridspec_kw={"hspace": 0.04})
+    axes[0].errorbar(
+        xvalues, mle_ln_k, yerr=mle_ln_k_err, marker="o", capsize=2.5, label="EATR MLE",
+        color=BLUE, ecolor=BLUE, elinewidth=1.0, markerfacecolor=BLUE, markeredgecolor=BLUE
+    )
+    axes[0].plot(xvalues, cdf_ln_k, marker="s", color=ORANGE, label="EATR CDF")
     axes[0].set_xscale(xscale)
-    axes[0].set_xlabel(xlabel)
     axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
-    axes[0].set_title("WT regular EATR")
-    axes[0].legend()
+    axes[0].legend(loc="best", handlelength=1.5)
     for label, xval, yval in zip(labels, xvalues, mle_ln_k):
-        axes[0].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        axes[0].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
 
-    axes[1].errorbar(xvalues, mle_gamma, yerr=mle_gamma_err, marker="o", capsize=3, label="EATR MLE")
-    axes[1].plot(xvalues, cdf_gamma, marker="s", label="EATR CDF")
+    axes[1].errorbar(
+        xvalues, mle_gamma, yerr=mle_gamma_err, marker="o", capsize=2.5, label="EATR MLE",
+        color=BLUE, ecolor=BLUE, elinewidth=1.0, markerfacecolor=BLUE, markeredgecolor=BLUE
+    )
+    axes[1].plot(xvalues, cdf_gamma, marker="s", color=ORANGE, label="EATR CDF")
     axes[1].set_xscale(xscale)
     axes[1].set_xlabel(xlabel)
     axes[1].set_ylabel("Estimated γ")
-    axes[1].set_title("WT regular EATR biasing efficiency")
-    axes[1].legend()
+    axes[1].legend(loc="best", handlelength=1.5)
     for label, xval, yval in zip(labels, xvalues, mle_gamma):
-        axes[1].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        axes[1].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
+    style_axes(axes)
+    add_panel_labels(axes, ["(a)", "(b)"])
+    axes[0].tick_params(labelbottom=False)
+    fig.subplots_adjust(top=0.98, bottom=0.10, left=0.22, right=0.98, hspace=0.04)
 
     fig.savefig(output, dpi=220)
     plt.close(fig)
@@ -205,23 +236,23 @@ def plot_flooding(args: argparse.Namespace) -> int:
 
     plt = pyplot()
 
-    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
-    ax.plot(condition_values, log_kobs, marker="o")
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
+    ax.plot(condition_values, log_kobs, marker="o", color=BLUE)
     for report, xval, yval in zip(reports, condition_values, log_kobs):
-        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     ax.set_xlabel(f"{args.condition_label}{unit_suffix}")
     ax.set_ylabel(r"Observed ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    ax.set_title(f"{args.title_prefix}: ln observed rate by set")
+    style_axis(ax)
     fig.savefig(f"{prefix}_observed_rate.png", dpi=220)
     plt.close(fig)
 
     xfit = np.linspace(float(np.min(ln_acceleration)) * 0.98, float(np.max(ln_acceleration)) * 1.02, 200)
     yfit = logk0 + gamma * xfit
-    fig, ax = plt.subplots(figsize=(6.5, 4.5), constrained_layout=True)
-    ax.plot(ln_acceleration, log_kobs, marker="o", linestyle="none", label="Simulation sets")
-    ax.plot(xfit, yfit, color="tab:red", label=fr"fit: ln($k_{{obs}}$) = ln($k_0$) + $\gamma$ ln($\alpha$)")
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
+    ax.plot(ln_acceleration, log_kobs, marker="o", linestyle="none", label="Simulation sets", color=BLUE)
+    ax.plot(xfit, yfit, color=BLACK, label=fr"fit: ln($k_{{obs}}$) = ln($k_0$) + $\gamma$ ln($\alpha$)")
     for report, xval, yval in zip(reports, ln_acceleration, log_kobs):
-        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8)
+        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     ax.text(
         0.03,
         0.97,
@@ -230,12 +261,12 @@ def plot_flooding(args: argparse.Namespace) -> int:
         va="top",
         ha="left",
         fontsize=9,
-        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85, "edgecolor": "0.7"},
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.9, "edgecolor": GRAY, "linewidth": 0.6},
     )
     ax.set_xlabel(r"ln acceleration factor, ln($\alpha$)")
     ax.set_ylabel(r"ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    ax.set_title(f"{args.title_prefix}: slope-style rate scaling")
-    ax.legend()
+    style_axis(ax)
+    ax.legend(loc="lower right", handlelength=1.5)
     fig.savefig(f"{prefix}_ln_kobs_vs_acceleration.png", dpi=220)
     plt.close(fig)
     return 0

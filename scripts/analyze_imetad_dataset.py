@@ -9,6 +9,11 @@ if str(ROOT) not in sys.path:
 
 from scripts.analyze_nnp_imetad import main
 
+DEFAULT_REE_CONFIG = ROOT / "example-data" / "Ree_Data" / "E_end_end_distance_wt" / "analysis.toml"
+
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    argv = sys.argv[1:]
+    if not argv:
+        argv = ["--config", str(DEFAULT_REE_CONFIG)]
+    raise SystemExit(main(argv))

@@ -1,6 +1,6 @@
 [analysis]
-input_root = "../example-data/Ree_Data"
-output_root = "../example-data/ree-analysis/opes"
+input_root = ".."
+output_root = "../../toml-example-results/opes"
 timeunit_seconds = 1e-15
 temperature_k = 312.0
 energyunit_kj_per_mol = 1.0

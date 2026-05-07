@@ -21,7 +21,7 @@ The repository also includes config-driven analysis scripts for local dataset tr
 - `scripts/analyze_opes_dataset.py`
 - `scripts/analyze_imetad_dataset.py`
 
-Those scripts are intended for batch analysis of directory-structured datasets and are configured with TOML files under [analysis-configs](analysis-configs).
+Those scripts are intended for batch analysis of directory-structured datasets and can read `analysis.toml` files stored directly inside the relevant data folders.
 
 ## Theory
 
@@ -215,8 +215,8 @@ The packaged CLI tools are best when you want to specify inputs explicitly on th
 
 Example config files:
 
-- [analysis-configs/ree_opes.toml](analysis-configs/ree_opes.toml)
-- [analysis-configs/ree_imetad.toml](analysis-configs/ree_imetad.toml)
+- [example-data/Ree_Data/E_end_end_distance_opes/analysis.toml](example-data/Ree_Data/E_end_end_distance_opes/analysis.toml)
+- [example-data/Ree_Data/E_end_end_distance_wt/analysis.toml](example-data/Ree_Data/E_end_end_distance_wt/analysis.toml)
 
 These configs control:
 
@@ -230,11 +230,10 @@ These configs control:
 
 ### OPES dataset script
 
-Run the Ree OPES example from its TOML:
+Run the Ree OPES example from the `analysis.toml` stored in that data folder:
 
 ```bash
-EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py \
-  --config analysis-configs/ree_opes.toml
+EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py
 ```
 
 That config points at [example-data/Ree_Data/E_end_end_distance_opes](example-data/Ree_Data/E_end_end_distance_opes) and sets:
@@ -250,7 +249,6 @@ Restrict to one configured CV:
 
 ```bash
 EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py \
-  --config analysis-configs/ree_opes.toml \
   --cv E_end_end_distance_opes
 ```
 
@@ -263,11 +261,10 @@ Outputs per CV:
 
 ### iMetaD dataset script
 
-Run the Ree MetaD example from its TOML:
+Run the Ree MetaD example from the `analysis.toml` stored in that data folder:
 
 ```bash
-EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py \
-  --config analysis-configs/ree_imetad.toml
+EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py
 ```
 
 That config points at [example-data/Ree_Data/E_end_end_distance_wt](example-data/Ree_Data/E_end_end_distance_wt) and sets:
@@ -283,7 +280,6 @@ Restrict to one configured CV:
 
 ```bash
 EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py \
-  --config analysis-configs/ree_imetad.toml \
   --cv E_end_end_distance_wt
 ```
 

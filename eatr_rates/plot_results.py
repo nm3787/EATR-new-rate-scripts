@@ -51,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     regular.add_argument("--xlabel", type=str, default="Condition", help="x-axis label")
     regular.add_argument("--xscale", choices=["linear", "log"], default="log", help="x-axis scaling")
     regular.add_argument("--method", choices=sorted(METHOD_KEYS), default="eatr-mle", help="which method keys to plot")
+    regular.add_argument("--noline", action="store_true", help="remove the connecting lines in the plots")
+    regular.add_argument("--truerate", type=np.float64, default=None, help="optional true rate to compare to results")
     regular.add_argument("-o", "--output", type=str, default="regular_series.png", help="output figure path")
 
     flooding = subparsers.add_parser("flooding", help="plot figures from one eatr-flooding-analysis JSON output")
@@ -103,7 +105,7 @@ def apply_xlimits(axis, xvalues: np.ndarray, xscale: str) -> None:
     if xscale == "log":
         if xmin <= 0.0:
             raise SystemExit("Log-scaled plots require strictly positive x values.")
-        axis.set_xlim(xmin / 1.05, xmax * 1.05)
+        axis.set_xlim(xmin / 1.5, xmax * 1.5)
         return
     span = xmax - xmin
     pad = 0.05 * span if span > 0.0 else max(0.05 * abs(xmin), 0.5)
@@ -119,6 +121,7 @@ def plot_regular_series(args: argparse.Namespace) -> int:
     payloads = [load_json(path) for path in args.input]
     xvalues = autodetect_xvalues(args.input) if args.xvalues is None else np.array(args.xvalues, dtype=float)
     labels = args.labels if args.labels is not None else [Path(path).stem for path in args.input]
+    linestyle = '' if args.noline else '-'
 
     if args.method == "eatr-comparison":
         return plot_eatr_comparison(payloads, xvalues, labels, args.xlabel, args.xscale, args.output)
@@ -166,15 +169,17 @@ def plot_regular_series(args: argparse.Namespace) -> int:
         axes = [axes]
 
     if log_error is None:
-        axes[0].plot(xvalues, log_values, marker="o", color=BLUE)
+        axes[0].plot(xvalues, log_values, linestyle=linestyle, marker="o", color=BLUE)
     else:
         axes[0].errorbar(
-            xvalues, log_values, yerr=log_error, marker="o", capsize=2.5,
+            xvalues, log_values, yerr=log_error, linestyle=linestyle, marker="o", capsize=2.5,
             color=BLUE, ecolor=BLUE, elinewidth=1.0, markerfacecolor=BLUE, markeredgecolor=BLUE
         )
     for label, xval, yval in zip(labels, xvalues, log_values):
         axes[0].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     axes[0].set_xscale(args.xscale)
+    if args.truerate is not None:
+        axes[0].axhline(args.truerate, linestyle='--', color=BLUE)
     apply_xlimits(axes[0], xvalues, args.xscale)
     axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
     if ncols == 1:
@@ -182,11 +187,14 @@ def plot_regular_series(args: argparse.Namespace) -> int:
         style_axis(axes[0])
 
     if gamma_values is not None:
+        axes[1].set_ylim((-0.05,1.05))
+        axes[1].axhline(0.0, linestyle='--', color=BLACK)
+        axes[1].axhline(1.0, linestyle='--', color=BLACK)
         if gamma_error is None:
-            axes[1].plot(xvalues, gamma_values, marker="o", color=BLUE)
+            axes[1].plot(xvalues, gamma_values, linestyle=linestyle, marker="o", color=BLUE)
         else:
             axes[1].errorbar(
-                xvalues, gamma_values, yerr=gamma_error, marker="o", capsize=2.5,
+                xvalues, gamma_values, yerr=gamma_error, linestyle=linestyle, marker="o", capsize=2.5,
                 color=BLUE, ecolor=BLUE, elinewidth=1.0, markerfacecolor=BLUE, markeredgecolor=BLUE
             )
         for label, xval, yval in zip(labels, xvalues, gamma_values):
@@ -198,7 +206,7 @@ def plot_regular_series(args: argparse.Namespace) -> int:
         style_axes(axes)
         add_panel_labels(axes, ["(a)", "(b)"])
         axes[0].tick_params(labelbottom=False)
-        fig.subplots_adjust(top=0.98, bottom=0.10, left=0.22, right=0.98, hspace=0.04)
+        fig.subplots_adjust(top=0.96, bottom=0.10, left=0.18, right=0.98, hspace=0.04)
 
     fig.savefig(args.output, dpi=220)
     plt.close(fig)

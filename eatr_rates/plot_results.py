@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 
 import numpy as np
 from eatr_rates.plot_style import (
@@ -45,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     regular = subparsers.add_parser("regular-series", help="plot a regular-analysis series from multiple JSON outputs")
     regular.add_argument("-i", "--input", nargs="+", required=True, help="JSON outputs from eatr-analysis")
-    regular.add_argument("--xvalues", nargs="+", type=float, required=True, help="x-axis values corresponding to the input JSON files")
+    regular.add_argument("--xvalues", nargs="+", type=float, default=None, help="x-axis values corresponding to the input JSON files; if omitted, infer pace values from filenames like pace_100ps.json")
     regular.add_argument("--labels", nargs="+", default=None, help="optional point labels matching the input JSON files")
     regular.add_argument("--xlabel", type=str, default="Condition", help="x-axis label")
     regular.add_argument("--xscale", choices=["linear", "log"], default="log", help="x-axis scaling")
@@ -80,14 +81,43 @@ def extract_uncertainty(payload: dict[str, object], key: str):
     return None
 
 
+PACE_PATTERN = re.compile(r"pace[_-]?([0-9]+(?:\.[0-9]+)?)ps$", re.IGNORECASE)
+
+
+def autodetect_xvalues(paths: list[str]) -> np.ndarray:
+    values = []
+    for path in paths:
+        match = PACE_PATTERN.search(Path(path).stem)
+        if match is None:
+            raise SystemExit(
+                "Could not infer x values from input filenames. "
+                "Use --xvalues explicitly or name files like pace_100ps.json."
+            )
+        values.append(float(match.group(1)))
+    return np.array(values, dtype=float)
+
+
+def apply_xlimits(axis, xvalues: np.ndarray, xscale: str) -> None:
+    xmin = float(np.min(xvalues))
+    xmax = float(np.max(xvalues))
+    if xscale == "log":
+        if xmin <= 0.0:
+            raise SystemExit("Log-scaled plots require strictly positive x values.")
+        axis.set_xlim(xmin / 1.05, xmax * 1.05)
+        return
+    span = xmax - xmin
+    pad = 0.05 * span if span > 0.0 else max(0.05 * abs(xmin), 0.5)
+    axis.set_xlim(xmin - pad, xmax + pad)
+
+
 def plot_regular_series(args: argparse.Namespace) -> int:
-    if len(args.input) != len(args.xvalues):
+    if args.xvalues is not None and len(args.input) != len(args.xvalues):
         raise SystemExit("The number of --input files must match the number of --xvalues.")
     if args.labels is not None and len(args.labels) != len(args.input):
         raise SystemExit("If provided, --labels must match the number of --input files.")
 
     payloads = [load_json(path) for path in args.input]
-    xvalues = np.array(args.xvalues, dtype=float)
+    xvalues = autodetect_xvalues(args.input) if args.xvalues is None else np.array(args.xvalues, dtype=float)
     labels = args.labels if args.labels is not None else [Path(path).stem for path in args.input]
 
     if args.method == "eatr-comparison":
@@ -145,6 +175,7 @@ def plot_regular_series(args: argparse.Namespace) -> int:
     for label, xval, yval in zip(labels, xvalues, log_values):
         axes[0].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
     axes[0].set_xscale(args.xscale)
+    apply_xlimits(axes[0], xvalues, args.xscale)
     axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
     if ncols == 1:
         axes[0].set_xlabel(args.xlabel)
@@ -161,6 +192,7 @@ def plot_regular_series(args: argparse.Namespace) -> int:
         for label, xval, yval in zip(labels, xvalues, gamma_values):
             axes[1].annotate(label, (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
         axes[1].set_xscale(args.xscale)
+        apply_xlimits(axes[1], xvalues, args.xscale)
         axes[1].set_xlabel(args.xlabel)
         axes[1].set_ylabel("Estimated γ")
         style_axes(axes)
@@ -191,6 +223,7 @@ def plot_eatr_comparison(payloads, xvalues, labels, xlabel: str, xscale: str, ou
     )
     axes[0].plot(xvalues, cdf_ln_k, marker="s", color=ORANGE, label="EATR CDF")
     axes[0].set_xscale(xscale)
+    apply_xlimits(axes[0], xvalues, xscale)
     axes[0].set_ylabel(r"Estimated ln($k_0$ / s$^{-1}$)")
     axes[0].legend(loc="best", handlelength=1.5)
     for label, xval, yval in zip(labels, xvalues, mle_ln_k):
@@ -202,6 +235,7 @@ def plot_eatr_comparison(payloads, xvalues, labels, xlabel: str, xscale: str, ou
     )
     axes[1].plot(xvalues, cdf_gamma, marker="s", color=ORANGE, label="EATR CDF")
     axes[1].set_xscale(xscale)
+    apply_xlimits(axes[1], xvalues, xscale)
     axes[1].set_xlabel(xlabel)
     axes[1].set_ylabel("Estimated γ")
     axes[1].legend(loc="best", handlelength=1.5)

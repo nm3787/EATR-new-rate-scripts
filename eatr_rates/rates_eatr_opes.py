@@ -198,7 +198,7 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
             barrier_add = 0 if args.nooffset else barrier
             data = [datas[i][j] for j in indicess[i]]
             event = np.array([events[i][j] for j in indicess[i]])
-            max_biases = [np.max(traj[:, 1] + barrier) for traj in data]
+            max_biases = [np.max(traj[:, 1]) + barrier for traj in data]
 
             colvar_row_counts = np.sort([len(traj[:, 0]) for traj in data])
             max_index = colvar_row_counts[-1] if args.avgover < 0 else colvar_row_counts[int(abs(args.avgover) * np.sum(event))]

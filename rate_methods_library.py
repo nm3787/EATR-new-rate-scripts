@@ -136,10 +136,10 @@ def get_event(data, maxlen=None, maxtime=None, num_events=None, log_files=None, 
             print(f"{event.sum()} out of {len(event)} simulations are specified to have transitioned.")
     return event
 
-def bootstrap(sample,func,nresamples,event=None,double=False,return_stat=False):
+def bootstrap(sample,func,nresamples,event=None,double=False,return_stat=False,seed=None):
     stat = []
     stat2 = []
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed=seed)
     sample_size = len(sample)
     index_sets = rng.integers(0, sample_size, size=(nresamples, sample_size))
     for indices in index_sets:
@@ -370,14 +370,14 @@ def KTR_MLE_rate_VMB(vmb_average, final_time_indices, event=None, gamma_bounds=(
     return np.array([k0, gamma])
 
 # KTR Get CDF rate estimate (directly from trajectory data)
-def KTR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, logTrick=False, init_guess=None, reg_lambda=0.0, kIMD=1.0, do_bopt=False, bias_shift=0.0):
+def KTR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, logTrick=False, init_guess=[None,None], reg_lambda=0.0, kIMD=1.0, do_bopt=False, bias_shift=0.0):
 
     # Get Vmb(t) and final_time_indices
     vmb_average = avg_max_bias(data, beta, bias_shift=bias_shift)
     final_time_indices = np.array([int(len(traj)-1) for traj in data])
     if event is None:
         event = _default_event(final_time_indices)
-    if init_guess is None:
+    if init_guess[0] is None:
         init_guess = (iMetaD_invMRT(data, beta, event=event, bias_shift=bias_shift),0.9)
     
     # 2-parameter CDF fitting for gamma and k0
@@ -409,11 +409,11 @@ def KTR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds
     return cdf_result
 
 # KTR Get CDF rate estimate (with precomputed Vmb(t) and ti indices)
-def KTR_CDF_rate_VMB(vmb_average, final_time_indices, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, logTrick=False, init_guess=None, reg_lambda=0.0, kIMD=None, do_bopt=False):
+def KTR_CDF_rate_VMB(vmb_average, final_time_indices, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, logTrick=False, init_guess=[None,None], reg_lambda=0.0, kIMD=None, do_bopt=False):
     
     if event is None:
         event = _default_event(final_time_indices)
-    if init_guess is None:
+    if init_guess[0] is None:
         init_guess = (1/np.mean(vmb_average[final_time_indices,0]),0.9)
     if kIMD is None:
         kIMD = init_guess[0]
@@ -575,15 +575,15 @@ def EATR_MLE_rate(data, beta, event=None, gamma_bounds=(0.,1.), cores=1, logTric
     return np.array([k0, gamma])
 
 # EATR Get CDF rate estimate (directly from trajectory data) (cannot precompute ln<e^γβV> because that depends on γ.)
-def EATR_CDF_rate(data, beta, event=None, k_bounds=(-np.inf,np.inf), gamma_bounds=(0.,1.), cores=1, init_guess=None, logTrick=False, reg_lambda=0.0, kIMD=1.0, do_bopt=False, bias_shift=0.0):
+def EATR_CDF_rate(data, beta, event=None, k_bounds=(0.,np.inf), gamma_bounds=(0.,1.), cores=1, init_guess=[None,None], logTrick=False, reg_lambda=0.0, kIMD=1.0, do_bopt=False, bias_shift=0.0):
 
     # Get final_time_indices
     final_time_indices = np.array([int(len(traj)-1) for traj in data])
     if event is None:
         event = _default_event(final_time_indices)
 
-    # initial guess should be similar to the observed rate if not specified
-    if init_guess is None:
+    # initial guess should be similar to the iMetaD rate if not specified
+    if init_guess[0] is None:
         init_guess = (iMetaD_invMRT(data, beta, event=event, bias_shift=bias_shift),0.9)
 
     # 2-parameter CDF fitting for gamma and k0

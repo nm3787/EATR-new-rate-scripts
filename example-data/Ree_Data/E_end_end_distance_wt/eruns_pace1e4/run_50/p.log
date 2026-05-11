@@ -1,0 +1,164 @@
+PLUMED: PLUMED is starting
+PLUMED: Version: 2.6.6 (git: Unknown) compiled on Jul  8 2022 at 11:02:59
+PLUMED: Please cite these papers when using PLUMED [1][2]
+PLUMED: For further information see the PLUMED web page at http://www.plumed.org
+PLUMED: Root: /scratch/work/hockygroup/software/plumed-nico-2.6.6/lib/plumed
+PLUMED: For installed feature, see /scratch/work/hockygroup/software/plumed-nico-2.6.6/lib/plumed/src/config/config.txt
+PLUMED: Molecular dynamics engine: LAMMPS
+PLUMED: Precision of reals: 8
+PLUMED: Running over 1 node
+PLUMED: Number of threads: 1
+PLUMED: Cache line size: 512
+PLUMED: Number of atoms: 56
+PLUMED: File suffix: 
+PLUMED: FILE: ../contact_plumed.dat
+PLUMED: Action CONTACTMAP
+PLUMED:   with label q
+PLUMED:   The 1th contact is calculated from atoms : 1 20. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.559197. Reference contact value is 0.000000
+PLUMED:   The 2th contact is calculated from atoms : 1 50. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.887706. Reference contact value is 0.000000
+PLUMED:   The 3th contact is calculated from atoms : 2 17. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.660217. Reference contact value is 0.000000
+PLUMED:   The 4th contact is calculated from atoms : 2 19. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.456949. Reference contact value is 0.000000
+PLUMED:   The 5th contact is calculated from atoms : 3 18. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.554283. Reference contact value is 0.000000
+PLUMED:   The 6th contact is calculated from atoms : 3 20. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.727214. Reference contact value is 0.000000
+PLUMED:   The 7th contact is calculated from atoms : 3 23. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.780759. Reference contact value is 0.000000
+PLUMED:   The 8th contact is calculated from atoms : 3 26. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.680757. Reference contact value is 0.000000
+PLUMED:   The 9th contact is calculated from atoms : 3 30. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.960357. Reference contact value is 0.000000
+PLUMED:   The 10th contact is calculated from atoms : 3 45. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=1.00896. Reference contact value is 0.000000
+PLUMED:   The 11th contact is calculated from atoms : 3 50. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.514235. Reference contact value is 0.000000
+PLUMED:   The 12th contact is calculated from atoms : 3 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.763707. Reference contact value is 0.000000
+PLUMED:   The 13th contact is calculated from atoms : 4 15. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.68731. Reference contact value is 0.000000
+PLUMED:   The 14th contact is calculated from atoms : 4 17. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.427249. Reference contact value is 0.000000
+PLUMED:   The 15th contact is calculated from atoms : 4 50. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.642155. Reference contact value is 0.000000
+PLUMED:   The 16th contact is calculated from atoms : 4 51. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.46971. Reference contact value is 0.000000
+PLUMED:   The 17th contact is calculated from atoms : 4 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.607494. Reference contact value is 0.000000
+PLUMED:   The 18th contact is calculated from atoms : 5 16. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.539722. Reference contact value is 0.000000
+PLUMED:   The 19th contact is calculated from atoms : 5 30. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.714898. Reference contact value is 0.000000
+PLUMED:   The 20th contact is calculated from atoms : 5 33. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=1.02224. Reference contact value is 0.000000
+PLUMED:   The 21th contact is calculated from atoms : 5 43. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.993717. Reference contact value is 0.000000
+PLUMED:   The 22th contact is calculated from atoms : 5 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.464978. Reference contact value is 0.000000
+PLUMED:   The 23th contact is calculated from atoms : 5 54. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.756422. Reference contact value is 0.000000
+PLUMED:   The 24th contact is calculated from atoms : 6 15. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.456665. Reference contact value is 0.000000
+PLUMED:   The 25th contact is calculated from atoms : 6 51. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.740576. Reference contact value is 0.000000
+PLUMED:   The 26th contact is calculated from atoms : 6 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.631815. Reference contact value is 0.000000
+PLUMED:   The 27th contact is calculated from atoms : 6 53. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.470692. Reference contact value is 0.000000
+PLUMED:   The 28th contact is calculated from atoms : 6 54. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.649629. Reference contact value is 0.000000
+PLUMED:   The 29th contact is calculated from atoms : 7 12. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.673969. Reference contact value is 0.000000
+PLUMED:   The 30th contact is calculated from atoms : 7 14. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.526481. Reference contact value is 0.000000
+PLUMED:   The 31th contact is calculated from atoms : 7 16. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.82371. Reference contact value is 0.000000
+PLUMED:   The 32th contact is calculated from atoms : 7 33. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=1.0656. Reference contact value is 0.000000
+PLUMED:   The 33th contact is calculated from atoms : 7 54. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.532482. Reference contact value is 0.000000
+PLUMED:   The 34th contact is calculated from atoms : 8 13. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.491984. Reference contact value is 0.000000
+PLUMED:   The 35th contact is calculated from atoms : 8 54. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.60348. Reference contact value is 0.000000
+PLUMED:   The 36th contact is calculated from atoms : 8 55. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.473503. Reference contact value is 0.000000
+PLUMED:   The 37th contact is calculated from atoms : 8 56. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.641671. Reference contact value is 0.000000
+PLUMED:   The 38th contact is calculated from atoms : 9 12. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.515282. Reference contact value is 0.000000
+PLUMED:   The 39th contact is calculated from atoms : 10 56. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.597704. Reference contact value is 0.000000
+PLUMED:   The 40th contact is calculated from atoms : 12 37. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.791925. Reference contact value is 0.000000
+PLUMED:   The 41th contact is calculated from atoms : 12 39. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.74802. Reference contact value is 0.000000
+PLUMED:   The 42th contact is calculated from atoms : 16 30. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.910137. Reference contact value is 0.000000
+PLUMED:   The 43th contact is calculated from atoms : 16 33. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=1.01779. Reference contact value is 0.000000
+PLUMED:   The 44th contact is calculated from atoms : 18 26. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.698288. Reference contact value is 0.000000
+PLUMED:   The 45th contact is calculated from atoms : 18 30. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.83856. Reference contact value is 0.000000
+PLUMED:   The 46th contact is calculated from atoms : 20 25. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.608744. Reference contact value is 0.000000
+PLUMED:   The 47th contact is calculated from atoms : 20 26. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.542319. Reference contact value is 0.000000
+PLUMED:   The 48th contact is calculated from atoms : 21 25. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.682038. Reference contact value is 0.000000
+PLUMED:   The 49th contact is calculated from atoms : 22 25. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.556818. Reference contact value is 0.000000
+PLUMED:   The 50th contact is calculated from atoms : 22 26. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.647398. Reference contact value is 0.000000
+PLUMED:   The 51th contact is calculated from atoms : 23 27. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.614077. Reference contact value is 0.000000
+PLUMED:   The 52th contact is calculated from atoms : 23 45. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.893399. Reference contact value is 0.000000
+PLUMED:   The 53th contact is calculated from atoms : 24 28. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.626151. Reference contact value is 0.000000
+PLUMED:   The 54th contact is calculated from atoms : 25 28. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.50787. Reference contact value is 0.000000
+PLUMED:   The 55th contact is calculated from atoms : 25 29. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.661246. Reference contact value is 0.000000
+PLUMED:   The 56th contact is calculated from atoms : 26 30. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.611774. Reference contact value is 0.000000
+PLUMED:   The 57th contact is calculated from atoms : 26 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.904764. Reference contact value is 0.000000
+PLUMED:   The 58th contact is calculated from atoms : 27 31. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.594682. Reference contact value is 0.000000
+PLUMED:   The 59th contact is calculated from atoms : 27 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.76865. Reference contact value is 0.000000
+PLUMED:   The 60th contact is calculated from atoms : 28 32. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.643679. Reference contact value is 0.000000
+PLUMED:   The 61th contact is calculated from atoms : 29 33. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.613631. Reference contact value is 0.000000
+PLUMED:   The 62th contact is calculated from atoms : 30 34. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.605821. Reference contact value is 0.000000
+PLUMED:   The 63th contact is calculated from atoms : 30 43. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=1.0469. Reference contact value is 0.000000
+PLUMED:   The 64th contact is calculated from atoms : 30 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.836208. Reference contact value is 0.000000
+PLUMED:   The 65th contact is calculated from atoms : 31 35. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.602217. Reference contact value is 0.000000
+PLUMED:   The 66th contact is calculated from atoms : 31 43. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.941282. Reference contact value is 0.000000
+PLUMED:   The 67th contact is calculated from atoms : 32 36. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.595326. Reference contact value is 0.000000
+PLUMED:   The 68th contact is calculated from atoms : 33 37. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.63436. Reference contact value is 0.000000
+PLUMED:   The 69th contact is calculated from atoms : 34 39. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.505334. Reference contact value is 0.000000
+PLUMED:   The 70th contact is calculated from atoms : 34 43. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=1.07836. Reference contact value is 0.000000
+PLUMED:   The 71th contact is calculated from atoms : 35 38. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.492973. Reference contact value is 0.000000
+PLUMED:   The 72th contact is calculated from atoms : 39 54. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.806028. Reference contact value is 0.000000
+PLUMED:   The 73th contact is calculated from atoms : 39 56. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.70268. Reference contact value is 0.000000
+PLUMED:   The 74th contact is calculated from atoms : 40 56. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.610244. Reference contact value is 0.000000
+PLUMED:   The 75th contact is calculated from atoms : 42 55. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.535208. Reference contact value is 0.000000
+PLUMED:   The 76th contact is calculated from atoms : 43 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.700207. Reference contact value is 0.000000
+PLUMED:   The 77th contact is calculated from atoms : 43 54. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.456655. Reference contact value is 0.000000
+PLUMED:   The 78th contact is calculated from atoms : 44 53. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.523789. Reference contact value is 0.000000
+PLUMED:   The 79th contact is calculated from atoms : 45 50. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.722966. Reference contact value is 0.000000
+PLUMED:   The 80th contact is calculated from atoms : 45 52. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.445979. Reference contact value is 0.000000
+PLUMED:   The 81th contact is calculated from atoms : 46 49. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.590925. Reference contact value is 0.000000
+PLUMED:   The 82th contact is calculated from atoms : 46 50. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.566086. Reference contact value is 0.000000
+PLUMED:   The 83th contact is calculated from atoms : 46 51. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.544831. Reference contact value is 0.000000
+PLUMED:   The 84th contact is calculated from atoms : 47 50. Inflection point of switching function is at 0.01.  Using nativeq switching function with parameters d0=0 beta=50 lambda=1.2 ref=0.462457. Reference contact value is 0.000000
+PLUMED:   colvar is sum of all contacts in contact map
+PLUMED: Action DISTANCE
+PLUMED:   with label de
+PLUMED:   between atoms 1 56
+PLUMED:   using periodic boundary conditions
+PLUMED: Action COMMITTOR
+PLUMED:   with label @2
+PLUMED:   with stride 100
+PLUMED:   with arguments q
+PLUMED:   on plumed log file
+PLUMED:   with format  %f
+PLUMED:   BASIN 1 definition:
+PLUMED:  0.010000 - 0.350000
+PLUMED: Action METAD
+PLUMED:   with label metad
+PLUMED:   with arguments de
+PLUMED:   added component to this action:  metad.bias 
+PLUMED:   Gaussian width  0.060000  Gaussian height 0.400000
+PLUMED:   Gaussian deposition pace 10000
+PLUMED:   Gaussian file HILLS
+PLUMED:   Well-Tempered Bias Factor 10.000000
+PLUMED:   Hills relaxation time (tau) 5836.752394
+PLUMED:   KbT 2.594112
+PLUMED:   added component to this action:  metad.work 
+PLUMED:   calculation on the fly of the acceleration factor
+PLUMED:   added component to this action:  metad.acc 
+PLUMED:   Bibliography [3][4][5]
+PLUMED: Action PRINT
+PLUMED:   with label @4
+PLUMED:   with stride 100000
+PLUMED:   with arguments q de
+PLUMED:   on file cvs.colvar
+PLUMED:   with format  %f
+PLUMED: Action PRINT
+PLUMED:   with label @5
+PLUMED:   with stride 100000
+PLUMED:   with arguments de metad.bias metad.work metad.acc
+PLUMED:   on file metad.colvar
+PLUMED:   with format  %f
+PLUMED: END FILE: ../contact_plumed.dat
+PLUMED: Timestep: 0.010000
+PLUMED: KbT has not been set by the MD engine
+PLUMED: It should be set by hand where needed
+PLUMED: Relevant bibliography:
+PLUMED:   [1] The PLUMED consortium, Nat. Methods 16, 670 (2019)
+PLUMED:   [2] Tribello, Bonomi, Branduardi, Camilloni, and Bussi, Comput. Phys. Commun. 185, 604 (2014)
+PLUMED:   [3] Laio and Parrinello, PNAS 99, 12562 (2002)
+PLUMED:   [4] Barducci, Bussi, and Parrinello, Phys. Rev. Lett. 100, 020603 (2008)
+PLUMED:   [5] Pratyush and Parrinello, Phys. Rev. Lett. 111, 230602 (2013)
+PLUMED: Please read and cite where appropriate!
+PLUMED: Finished setup
+#! FIELDS time q basin
+ 45806.000000 0.343558 1
+#! FIELDS
+#! SET COMMITED TO BASIN 1 
+
+PLUMED:                                               Cycles        Total      Average      Minumum      Maximum
+PLUMED:                                                    1    77.654851    77.654851    77.654851    77.654851
+PLUMED: 1 Prepare dependencies                       4580601     0.826073     0.000000     0.000000     0.000073
+PLUMED: 2 Sharing data                               4580601     3.258550     0.000001     0.000000     0.000076
+PLUMED: 3 Waiting for data                           4580601     0.473764     0.000000     0.000000     0.000122
+PLUMED: 4 Calculating (forward loop)                 4580601    24.540314     0.000005     0.000001     0.001115
+PLUMED: 5 Applying (backward loop)                   4580601     5.240547     0.000001     0.000001     0.000186
+PLUMED: 6 Update                                     4580601    31.080530     0.000007     0.000000     0.003533

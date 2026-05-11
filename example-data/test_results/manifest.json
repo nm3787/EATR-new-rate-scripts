@@ -1,0 +1,26 @@
+{
+  "generated_files": [
+    "manifest.json",
+    "opes_flooding_diagnostics.png",
+    "opes_flooding_summary.json",
+    "opes_ln_kobs_vs_acceleration.png",
+    "opes_observed_rate_vs_barrier.png",
+    "wt_flooding_all_paces.png",
+    "wt_flooding_filtered_paces.png",
+    "wt_flooding_summary.json",
+    "wt_ln_kobs_vs_acceleration.png",
+    "wt_observed_rate_vs_pace.png",
+    "wt_regular_eatr_summary.json",
+    "wt_regular_eatr_vs_pace.png"
+  ],
+  "notes": [
+    "Protein G example trajectories use a 10 fs timestep in LAMMPS real units, so times were converted with 1e-15 s/fs.",
+    "Reported rate constants and observed rates in these example outputs are converted to us^-1.",
+    "WT flooding analysis is reported for all pace sets and for a manuscript-style filtered subset with pace >= 100 ps.",
+    "Bootstrap uncertainties use 50 trajectory-resampling replicas per analysis.",
+    "Optional multithreading is controlled with EATR_THREADS; current default is 4."
+  ],
+  "wt_regular_summary": "wt_regular_eatr_summary.json",
+  "opes_flooding_summary": "opes_flooding_summary.json",
+  "wt_flooding_summary": "wt_flooding_summary.json"
+}

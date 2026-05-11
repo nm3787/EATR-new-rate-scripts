@@ -1,0 +1,13 @@
+#! FIELDS time e sigma_e height
+#! SET action OPES_METAD_state
+#! SET biasfactor       3.469395073212715
+#! SET epsilon    0.007640039155174105
+#! SET kernel_cutoff       3.122291642622147
+#! SET compression_threshold                       1
+#! SET zed      0.3940298890902796
+#! SET sum_weights         1.0612108899138
+#! SET sum_weights2       0.472284763459391
+#! SET counter  5
+                      0      2.702900048605157    0.06206017502565676    0.03010226110527593
+                      0      2.504182494571076    0.05241838920201053     0.5683490091679881
+                      0      2.390897039009579    0.05514714907014313     0.5514703974759086

@@ -1,7 +1,7 @@
 [analysis]
 input_root = ".."
 output_root = "../../toml-example-results/imetad"
-timeunit_seconds = 1e-15
+timeunit_seconds = 1e-12
 timestep_ps = 0.01
 temperature_k = 312.0
 energyunit_kj_per_mol = 1.0

@@ -238,7 +238,7 @@ EATR_THREADS=4 .venv/bin/python scripts/analyze_opes_dataset.py
 
 That config points at [example-data/Ree_Data/E_end_end_distance_opes](example-data/Ree_Data/E_end_end_distance_opes) and sets:
 
-- `timeunit_seconds = 1e-15`
+- `timeunit_seconds = 1e-12`
 - `temperature_k = 312.0`
 - `bias_col = 4`
 - directory prefixes `eruns_barr*` and `run_*`
@@ -269,7 +269,7 @@ EATR_THREADS=4 .venv/bin/python scripts/analyze_imetad_dataset.py
 
 That config points at [example-data/Ree_Data/E_end_end_distance_wt](example-data/Ree_Data/E_end_end_distance_wt) and sets:
 
-- `timeunit_seconds = 1e-15`
+- `timeunit_seconds = 1e-12`
 - `timestep_ps = 0.01`
 - `temperature_k = 312.0`
 - `bias_col = 2`
@@ -298,10 +298,10 @@ The repository includes two example collections under [example-data/Ree_Data](ex
 - [E_end_end_distance_wt](example-data/Ree_Data/E_end_end_distance_wt)
   WT-MetaD simulations with sets `eruns_pace1e2`, `1e3`, `1e4`, `2e4`, `5e4`, `1e5`, `5e5`, `1e6`
 
-For these protein G examples, the LAMMPS inputs use `real` units with a `10 fs` timestep, so the correct time conversion is:
+For these protein G examples, PLUMED was configured to use the default unit of `ps`, so the correct timeunit parameter is:
 
 ```bash
---timeunit 1e-15
+--timeunit 1e-12
 ```
 
 The temperature used in the examples is:
@@ -349,7 +349,7 @@ eatr-analysis \
   -i example-data/Ree_Data/E_end_end_distance_wt/eruns_pace1e4/run_*/metad.colvar \
   --logfiles example-data/Ree_Data/E_end_end_distance_wt/eruns_pace1e4/run_*/p.log \
   --temp 312 \
-  --timeunit 1e-15 \
+  --timeunit 1e-12 \
   --tcol 0 \
   --vcol 2 \
   --acol 4 \

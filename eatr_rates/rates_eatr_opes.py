@@ -5,6 +5,7 @@ import json
 import random
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 from scipy import optimize
@@ -12,6 +13,7 @@ from scipy.stats import ks_1samp
 
 import ks_censored as ksc
 import rate_methods_library as RM
+from eatr_rates.plot_results import plot_flooding_payload
 
 
 def thread_map(func, values, threads: int):
@@ -42,6 +44,7 @@ class FloodingAnalysisResult:
     gamma: float
     opes_logk0: float | None
     set_reports: list[FloodingSetReport] = field(default_factory=list)
+    flooding_diagnostics: dict[str, object] | None = None
     bootstrap_logk0_std: float | None = None
     bootstrap_gamma_std: float | None = None
     bootstrap_opes_logk0_std: float | None = None
@@ -82,6 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timefirst", action="store_true", help="estimate ln<e^βγV> by averaging over time for each simulation, then over the simulations (default is over simulations first)")
     parser.add_argument("--nooffset", action="store_true", help="do not add the BARRIER parameter to the bias (OPES simulations in PLUMED offset the bias by -1*BARRIER, so do not use this for such simulations)")
     parser.add_argument("--opesf", action="store_true", help="also run the OPES flooding analysis on all of the data")
+    parser.add_argument("--no-plots", action="store_true", help="do not write the flooding diagnostic plots alongside the JSON output")
+    parser.add_argument("--plot-prefix", type=str, default=None, help="output prefix for generated flooding figures (default: output JSON path without .json)")
+    parser.add_argument("--condition-label", type=str, default="Bias label", help="label for the per-set condition values in generated plots")
+    parser.add_argument("--condition-unit", type=str, default="", help="unit suffix for the per-set condition values in generated plots")
+    parser.add_argument("--title-prefix", type=str, default="Flooding analysis", help="title prefix for the generated diagnostic figure")
     return parser
 
 
@@ -123,6 +131,7 @@ def result_payload(result: FloodingAnalysisResult) -> dict[str, object]:
         "logk0": result.logk0,
         "gamma": result.gamma,
         "opes_logk0": result.opes_logk0,
+        "flooding_diagnostics": result.flooding_diagnostics,
         "bootstrap_logk0_std": result.bootstrap_logk0_std,
         "bootstrap_gamma_std": result.bootstrap_gamma_std,
         "bootstrap_opes_logk0_std": result.bootstrap_opes_logk0_std,
@@ -185,7 +194,32 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
     datas = [RM.get_data(colvars, args.tcol, args.vcol, acc_col=args.acol, time_scale_factor=args.timeunit) for colvars in args.input]
     events = [RM.get_event(datas[i], maxlen=args.maxlen, maxtime=args.maxtime, num_events=num_eventss[i], log_files=log_filess[i], quiet=True) for i in range(len(datas))]
 
-    def analyze_indices(indicess: list[list[int]]) -> tuple[float, float, float | None, list[FloodingSetReport]]:
+    def compute_diagnostics(v_datas: dict[float, np.ndarray], obs_rates: dict[float, float]) -> dict[str, object]:
+        gamma_grid = np.linspace(args.gammamin, args.gammamax, 401)
+
+        def gamma_worker(gamma: float) -> tuple[list[float], float, float]:
+            logk0s = []
+            for barrier in barriers:
+                avg = np.mean(np.nanmean(np.exp(beta * gamma * v_datas[barrier]), axis=axis_first))
+                logk0s.append(float(np.log(obs_rates[barrier]) - np.log(avg)))
+            return logk0s, float(np.mean(logk0s)), float(np.var(logk0s))
+
+        gamma_results = thread_map(gamma_worker, gamma_grid, args.threads)
+        per_set_logk0 = [result[0] for result in gamma_results]
+        mean_logk0 = [result[1] for result in gamma_results]
+        var_logk0 = [result[2] for result in gamma_results]
+        best_index = int(np.argmin(var_logk0))
+        return {
+            "gamma_grid": gamma_grid.tolist(),
+            "per_set_ln_k0": per_set_logk0,
+            "mean_ln_k0": mean_logk0,
+            "var_ln_k0": var_logk0,
+            "gamma_best": float(gamma_grid[best_index]),
+            "logk0_best": float(mean_logk0[best_index]),
+            "ln_k0_per_set_best": per_set_logk0[best_index],
+        }
+
+    def analyze_indices(indicess: list[list[int]]) -> tuple[float, float, float | None, list[FloodingSetReport], dict[str, object]]:
         logk0_opesf = None
         opesf_times: list[float] = []
         opesf_event: list[bool] = []
@@ -258,17 +292,21 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
                 logk0s.append(np.log(obs_rates[barrier]) - np.log(avg))
             return np.var(logk0s)
 
-        gamma_best = optimize.minimize_scalar(variance, bounds=gamma_bounds).x
+        diagnostics = compute_diagnostics(v_datas, obs_rates)
+        gamma_best = optimize.minimize_scalar(variance, bounds=gamma_bounds, method="bounded").x
         logk0s = []
         for barrier in barriers:
             avg = np.mean(np.nanmean(np.exp(beta * gamma_best * v_datas[barrier]), axis=axis_first))
             logk0s.append(np.log(obs_rates[barrier]) - np.log(avg))
         logk0_best = np.mean(logk0s)
-        return logk0_best, gamma_best, logk0_opesf, set_reports
+        diagnostics["gamma_best"] = float(gamma_best)
+        diagnostics["logk0_best"] = float(logk0_best)
+        diagnostics["ln_k0_per_set_best"] = [float(value) for value in logk0s]
+        return logk0_best, gamma_best, logk0_opesf, set_reports, diagnostics
 
     if not args.bootstrap:
-        logk0_best, gamma_best, logk0_opes, set_reports = analyze_indices([list(range(len(data))) for data in datas])
-        result = FloodingAnalysisResult(beta=beta, logk0=float(logk0_best), gamma=float(gamma_best), opes_logk0=None if logk0_opes is None else float(logk0_opes), set_reports=set_reports)
+        logk0_best, gamma_best, logk0_opes, set_reports, diagnostics = analyze_indices([list(range(len(data))) for data in datas])
+        result = FloodingAnalysisResult(beta=beta, logk0=float(logk0_best), gamma=float(gamma_best), opes_logk0=None if logk0_opes is None else float(logk0_opes), set_reports=set_reports, flooding_diagnostics=diagnostics)
         result.messages = format_flooding_result(result)
         return result
 
@@ -276,6 +314,7 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
     sample_gamma = []
     sample_opesf = []
     set_reports: list[FloodingSetReport] = []
+    diagnostics: dict[str, object] | None = None
     iterations: list[int] = []
     def bootstrap_worker(i: int):
         rng = random.Random(None if args.seed is None else args.seed + i + 1)
@@ -283,11 +322,12 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
         return i, analyze_indices(indicess)
 
     bootstrap_results = thread_map(bootstrap_worker, list(range(args.numboots)), args.threads)
-    for i, (logk0, gamma, logk0_opesf, current_reports) in bootstrap_results:
+    for i, (logk0, gamma, logk0_opesf, current_reports, current_diagnostics) in bootstrap_results:
         sample_logk0.append(logk0)
         sample_gamma.append(gamma)
         sample_opesf.append(logk0_opesf)
         set_reports = current_reports
+        diagnostics = current_diagnostics
         iterations.append(i)
     result = FloodingAnalysisResult(
         beta=beta,
@@ -295,6 +335,7 @@ def analyze(args: argparse.Namespace) -> FloodingAnalysisResult:
         gamma=float(np.mean(sample_gamma)),
         opes_logk0=None if sample_opesf[0] is None else float(np.mean(sample_opesf)),
         set_reports=set_reports,
+        flooding_diagnostics=diagnostics,
         bootstrap_logk0_std=float(np.std(sample_logk0)),
         bootstrap_gamma_std=float(np.std(sample_gamma)),
         bootstrap_opes_logk0_std=None if sample_opesf[0] is None else float(np.std(sample_opesf)),
@@ -308,7 +349,17 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     result = analyze(args)
     emit_messages(result, args.quiet)
-    write_results(args.output, result_payload(result))
+    payload = result_payload(result)
+    write_results(args.output, payload)
+    if not args.no_plots:
+        prefix = args.plot_prefix if args.plot_prefix is not None else str(Path(args.output).with_suffix(""))
+        plot_flooding_payload(
+            payload,
+            output_prefix=prefix,
+            condition_label=args.condition_label,
+            condition_unit=args.condition_unit,
+            title_prefix=args.title_prefix,
+        )
     return 0
 
 

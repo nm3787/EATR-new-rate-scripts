@@ -12,6 +12,7 @@ from eatr_rates.plot_style import (
     GRAY,
     LIGHT_BLUE,
     ORANGE,
+    SET_COLORS,
     add_panel_labels,
     apply_publication_style,
     style_axis,
@@ -110,6 +111,110 @@ def apply_xlimits(axis, xvalues: np.ndarray, xscale: str) -> None:
     span = xmax - xmin
     pad = 0.05 * span if span > 0.0 else max(0.05 * abs(xmin), 0.5)
     axis.set_xlim(xmin - pad, xmax + pad)
+
+
+def plot_flooding_payload(
+    payload: dict[str, object],
+    output_prefix: str,
+    condition_label: str = "Bias label",
+    condition_unit: str = "",
+    title_prefix: str = "Flooding analysis",
+) -> list[str]:
+    reports = payload["set_reports"]
+    if not reports:
+        raise SystemExit("The flooding JSON did not contain any set reports.")
+
+    unit_suffix = f" ({condition_unit})" if condition_unit else ""
+    condition_values = np.array([float(report["barrier"]) for report in reports], dtype=float)
+    log_kobs = np.array([float(report["log_k_obs"]) for report in reports], dtype=float)
+    ln_acceleration = np.array([float(report["ln_exp_beta_v"]) for report in reports], dtype=float)
+    gamma = float(payload["gamma"])
+    logk0 = float(payload["logk0"])
+
+    prefix = Path(output_prefix)
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    written_paths: list[str] = []
+    plt = pyplot()
+
+    observed_path = f"{prefix}_observed_rate.png"
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
+    ax.plot(condition_values, log_kobs, marker="o", color=BLUE)
+    for report, xval, yval in zip(reports, condition_values, log_kobs):
+        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
+    ax.set_xlabel(f"{condition_label}{unit_suffix}")
+    ax.set_ylabel(r"Observed ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
+    style_axis(ax)
+    fig.savefig(observed_path, dpi=220)
+    plt.close(fig)
+    written_paths.append(observed_path)
+
+    acceleration_path = f"{prefix}_ln_kobs_vs_acceleration.png"
+    xfit = np.linspace(float(np.min(ln_acceleration)) * 0.98, float(np.max(ln_acceleration)) * 1.02, 200)
+    yfit = logk0 + gamma * xfit
+    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
+    ax.plot(ln_acceleration, log_kobs, marker="o", linestyle="none", label="Simulation sets", color=BLUE)
+    ax.plot(xfit, yfit, color=BLACK, label=fr"fit: ln($k_{{obs}}$) = ln($k_0$) + $\gamma$ ln($\alpha$)")
+    for report, xval, yval in zip(reports, ln_acceleration, log_kobs):
+        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
+    ax.text(
+        0.03,
+        0.97,
+        f"slope (gamma) = {gamma:.3f}\nintercept ln(k0 / s^-1) = {logk0:.3f}",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.9, "edgecolor": GRAY, "linewidth": 0.6},
+    )
+    ax.set_xlabel(r"ln acceleration factor, ln($\alpha$)")
+    ax.set_ylabel(r"ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
+    style_axis(ax)
+    ax.legend(loc="lower right", handlelength=1.5)
+    fig.savefig(acceleration_path, dpi=220)
+    plt.close(fig)
+    written_paths.append(acceleration_path)
+
+    diagnostics = payload.get("flooding_diagnostics")
+    if diagnostics:
+        diagnostics_path = f"{prefix}_diagnostics.png"
+        gamma_grid = np.array(diagnostics["gamma_grid"], dtype=float)
+        per_set = np.array(diagnostics["per_set_ln_k0"], dtype=float)
+        mean_ln_k0 = np.array(diagnostics["mean_ln_k0"], dtype=float)
+        var_ln_k0 = np.array(diagnostics["var_ln_k0"], dtype=float)
+        gamma_best = float(diagnostics["gamma_best"])
+        logk0_best = float(diagnostics["logk0_best"])
+        set_labels = [str(report["barrier"]) for report in reports]
+
+        fig, axes = plt.subplots(3, 1, figsize=(3.35, 6.85), sharex=True, gridspec_kw={"hspace": 0.04})
+        for idx, label in enumerate(set_labels):
+            axes[0].plot(gamma_grid, per_set[:, idx], label=label, color=SET_COLORS[idx % len(SET_COLORS)])
+        axes[0].set_ylabel(r"Predicted ln($k_0$ / s$^{-1}$)")
+        axes[0].legend(loc="lower left", ncol=2, handlelength=1.4, columnspacing=0.8)
+
+        std_ln_k0 = np.sqrt(var_ln_k0)
+        axes[1].plot(gamma_grid, mean_ln_k0, color=BLUE)
+        axes[1].fill_between(gamma_grid, mean_ln_k0 - std_ln_k0, mean_ln_k0 + std_ln_k0, color=LIGHT_BLUE, alpha=0.9)
+        axes[1].axvline(gamma_best, color=BLACK, linestyle="--", label=fr"min-var. $\gamma$ = {gamma_best:.2f}")
+        axes[1].axhline(logk0_best, color=BLUE, linestyle="--", label=fr"mean ln($k_0$) = {logk0_best:.2f}")
+        axes[1].set_ylabel(r"Mean ln($k_0$ / s$^{-1}$)")
+        axes[1].legend(loc="lower left", handlelength=1.5)
+
+        axes[2].plot(gamma_grid, var_ln_k0, color=BLACK)
+        axes[2].axvline(gamma_best, color=BLACK, linestyle="--")
+        axes[2].set_xlabel("gamma")
+        axes[2].set_ylabel(r"Var[ln($k_0$)]")
+
+        style_axes(axes)
+        add_panel_labels(axes)
+        for ax in axes[:-1]:
+            ax.tick_params(labelbottom=False)
+        fig.suptitle(title_prefix, fontsize=10.0, y=0.985)
+        fig.subplots_adjust(top=0.93, bottom=0.08, left=0.22, right=0.98, hspace=0.04)
+        fig.savefig(diagnostics_path, dpi=220)
+        plt.close(fig)
+        written_paths.append(diagnostics_path)
+
+    return written_paths
 
 
 def plot_regular_series(args: argparse.Namespace) -> int:
@@ -261,56 +366,13 @@ def plot_eatr_comparison(payloads, xvalues, labels, xlabel: str, xscale: str, ou
 
 def plot_flooding(args: argparse.Namespace) -> int:
     payload = load_json(args.input)
-    reports = payload["set_reports"]
-    if not reports:
-        raise SystemExit("The flooding JSON did not contain any set reports.")
-
-    unit_suffix = f" ({args.condition_unit})" if args.condition_unit else ""
-    condition_values = np.array([float(report["barrier"]) for report in reports], dtype=float)
-    kobs = np.array([float(report["k_obs"]) for report in reports], dtype=float)
-    log_kobs = np.array([float(report["log_k_obs"]) for report in reports], dtype=float)
-    ln_acceleration = np.array([float(report["ln_exp_beta_v"]) for report in reports], dtype=float)
-    gamma = float(payload["gamma"])
-    logk0 = float(payload["logk0"])
-
-    prefix = Path(args.output_prefix)
-    prefix.parent.mkdir(parents=True, exist_ok=True)
-
-    plt = pyplot()
-
-    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
-    ax.plot(condition_values, log_kobs, marker="o", color=BLUE)
-    for report, xval, yval in zip(reports, condition_values, log_kobs):
-        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
-    ax.set_xlabel(f"{args.condition_label}{unit_suffix}")
-    ax.set_ylabel(r"Observed ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    style_axis(ax)
-    fig.savefig(f"{prefix}_observed_rate.png", dpi=220)
-    plt.close(fig)
-
-    xfit = np.linspace(float(np.min(ln_acceleration)) * 0.98, float(np.max(ln_acceleration)) * 1.02, 200)
-    yfit = logk0 + gamma * xfit
-    fig, ax = plt.subplots(figsize=(3.35, 2.23), constrained_layout=True)
-    ax.plot(ln_acceleration, log_kobs, marker="o", linestyle="none", label="Simulation sets", color=BLUE)
-    ax.plot(xfit, yfit, color=BLACK, label=fr"fit: ln($k_{{obs}}$) = ln($k_0$) + $\gamma$ ln($\alpha$)")
-    for report, xval, yval in zip(reports, ln_acceleration, log_kobs):
-        ax.annotate(str(report["barrier"]), (xval, yval), textcoords="offset points", xytext=(4, 4), fontsize=8, color=GRAY)
-    ax.text(
-        0.03,
-        0.97,
-        f"slope (gamma) = {gamma:.3f}\nintercept ln(k0 / s^-1) = {logk0:.3f}",
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        fontsize=9,
-        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.9, "edgecolor": GRAY, "linewidth": 0.6},
+    plot_flooding_payload(
+        payload,
+        output_prefix=args.output_prefix,
+        condition_label=args.condition_label,
+        condition_unit=args.condition_unit,
+        title_prefix=args.title_prefix,
     )
-    ax.set_xlabel(r"ln acceleration factor, ln($\alpha$)")
-    ax.set_ylabel(r"ln($k_{\mathrm{obs}}$ / s$^{-1}$)")
-    style_axis(ax)
-    ax.legend(loc="lower right", handlelength=1.5)
-    fig.savefig(f"{prefix}_ln_kobs_vs_acceleration.png", dpi=220)
-    plt.close(fig)
     return 0
 
 

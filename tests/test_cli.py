@@ -90,7 +90,7 @@ class CliTests(unittest.TestCase):
             )
 
     @unittest.skipUnless(find_spec("numpy") and find_spec("scipy"), "numpy and scipy are required")
-    def test_flooding_cli_writes_json_output(self):
+    def test_flooding_cli_writes_json_and_plots(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             repo_root = Path(__file__).resolve().parents[1]
@@ -154,6 +154,10 @@ class CliTests(unittest.TestCase):
             self.assertIn("gamma", payload)
             self.assertIn("logk0", payload)
             self.assertEqual(len(payload["set_reports"]), 2)
+            self.assertIn("flooding_diagnostics", payload)
+            self.assertTrue((tmp_path / "flooding_observed_rate.png").exists())
+            self.assertTrue((tmp_path / "flooding_ln_kobs_vs_acceleration.png").exists())
+            self.assertTrue((tmp_path / "flooding_diagnostics.png").exists())
 
     @unittest.skipUnless(find_spec("numpy") and find_spec("scipy"), "numpy and scipy are required")
     def test_plot_results_cli_writes_regular_series_figure(self):

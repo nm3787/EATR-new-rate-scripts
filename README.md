@@ -167,11 +167,18 @@ Important arguments:
   Disable automatic addition of the OPES barrier offset to the reported bias.
 - `--opesf`
   Also report the standard OPES-flooding estimate alongside EATR-flooding.
+- `--plot-prefix`
+  Prefix for the generated flooding figures. By default this is derived from `--output`, so `-o opes_flooding.json` writes `opes_flooding_observed_rate.png`, `opes_flooding_ln_kobs_vs_acceleration.png`, and `opes_flooding_diagnostics.png`.
+- `--condition-label`, `--condition-unit`, `--title-prefix`
+  Labels used in the generated flooding figures.
+- `--no-plots`
+  Disable the automatic figure generation if you only want the JSON output.
 
 Notes:
 
 - For OPES data produced with `OPES_METAD ... BARRIER=...`, you usually want to pass the same `BARRIER` values here and leave `--nooffset` unset.
 - The method is also useful for MetaD if you have several sets with systematically varied deposition pace.
+- By default the command now writes the flooding JSON and the diagnostic figures in one pass. Those plots are intended to be inspected together with the numerical fit.
 
 ### `eatr-check-order`
 
@@ -185,7 +192,7 @@ eatr-check-order -i run_*/metad.colvar -l run_*/p.log -o order.dat
 
 ### `eatr-analysis-plot`
 
-This plotting helper consumes JSON outputs written by `eatr-analysis` or `eatr-flooding-analysis` and generates figures without rerunning the numerical analysis.
+This plotting helper consumes JSON outputs written by `eatr-analysis` or `eatr-flooding-analysis` and generates figures without rerunning the numerical analysis. It is still useful if you want to replot a flooding result with different labels or a different output prefix, but `eatr-flooding-analysis` now generates its own flooding plots by default.
 
 Regular-series example:
 
